@@ -1,0 +1,2 @@
+#! /bin/bash
+viddy --pty --interval 1 "qload && qstat -u bhar9988 -t -n1 -r && qstat -u bhar9988 -t -n1 -i"

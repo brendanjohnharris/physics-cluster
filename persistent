@@ -1,0 +1,6 @@
+#! /bin/tcsh
+# source $HOME/.cshrc
+qsub -I -l mem=64GB -l ncpus=16 -V -S "/bin/tcsh"
+#  -S "/headnode2/bhar9988/.conda/envs/bhar9988/bin/julia"
+# julia
+# bash -c "source /headnode2/bhar9988/.bashrc; $@"
