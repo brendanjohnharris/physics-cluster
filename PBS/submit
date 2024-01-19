@@ -1,0 +1,12 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=4:mem=8GB
+#PBS -l walltime=96:00:00
+#PBS -o $HOME/jobs/PBS_julia.o
+#PBS -V
+#PBS -j oe
+#PBS -M bhar9988@uni.sydney.edu.au
+#PBS -m ae
+
+file="/headnode2/bhar9988/code/DDC/AllenAttention.jl/test/Neuropixels/VisualBehavior/MultiSubject/PowerSpectra/PowerSpectra.jl"
+$file 2>&1 | tee ./jobs/${PBS_JOBID}.log
+

@@ -5,6 +5,7 @@ alias julia='$HOME/build/julia-1.10.0/bin/julia'
 module load pbspro
 # module load gsl-2.7
 # module load Anaconda3-5.1.0
+module load hdf/5/1.14.1-2_intel2021
 
 # setenv LD_LIBRARY_PATH ""
 # setenv LD_PRELOAD=""

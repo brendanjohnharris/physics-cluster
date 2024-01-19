@@ -1,7 +1,8 @@
 ENV["JULIA_CPU_TARGET"] = "generic; native"
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
-ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
+ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
+# ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
 using Pkg
 # ENV["PYTHON"]="/headnode2/bhar9988/.conda/envs/bhar9988/bin/python"
 # ENV["JULIA_PYTHONCALL_EXE"]="@PyCall"

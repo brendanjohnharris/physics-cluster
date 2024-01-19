@@ -46,13 +46,32 @@ export JULIA_NUM_THREADS="auto"
 module load pbspro
 module load gsl-2.7
 module load Anaconda3-5.1.0
+module load hdf/5/1.14.1-2_intel2021
 alias tmux="TERM=xterm-256color /headnode2/bhar9988/.conda/envs/bhar9988/bin/tmux"
 # source /usr/physics/python/anaconda3/etc/profile.d/conda.sh
 export CONDA_DEFAULT_ENV="bhar9988"
 # export SHELL=/bin/bash #/headnode2/bhar9988/.conda/envs/bhar9988/bin/fish
 export PATH="/headnode2/bhar9988/.conda/envs/bhar9988/bin:/headnode2/bhar9988/build/vscode/bin/:$PATH"
-export PATH="/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:/usr/physics/pbspro/bin:$PATH"
+export PATH="/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:/usr/physics/pbspro/bin:$HOME/build/miniforge3/condabin/:$PATH"
 # export LD_LIBRARY_PATH="/headnode2/bhar9988/.conda/envs/bhar9988/lib/:$LD_LIBRARY_PATH"
 test -e "$HOME/.shellfishrc" && source "$HOME/.shellfishrc"
-. /usr/physics/python/anaconda3/etc/profile.d/conda.sh
+# . /usr/physics/python/anaconda3/etc/profile.d/conda.sh  # commented out by conda initialize
 
+export CONDA_DEFAULT_ENV="bhar9988"
+
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/headnode2/bhar9988/build/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/headnode2/bhar9988/build/miniforge3/etc/profile.d/conda.sh" ]; then
+        . "/headnode2/bhar9988/build/miniforge3/etc/profile.d/conda.sh"
+    else
+        export PATH="/headnode2/bhar9988/build/miniforge3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+conda activate bhar9988
