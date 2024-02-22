@@ -1,0 +1,10 @@
+#!/bin/bash
+
+MOST_RECENT_SOCKET=`mostrecentsocket`
+
+if [ -z "$MOST_RECENT_SOCKET" ]; then
+    echo "No socket file found"
+    exit 1
+fi
+
+qsub -I -v MOST_RECENT_SOCKET=$MOST_RECENT_SOCKET -l mem=188GB -l ncpus=32 -l walltime=48:00:00 -l host=node21

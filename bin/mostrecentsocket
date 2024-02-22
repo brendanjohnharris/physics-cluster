@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Find the most recent socket file in /tmp/
+most_recent_socket=$(find /tmp/ -type s -printf '%T@ %p\n' | sort -n | tail -1 | awk '{print $2}')
+
+# Print the path of the most recent socket file
+echo "The path of the most recent socket file in /tmp/ is: $most_recent_socket"

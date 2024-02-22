@@ -1,0 +1,3 @@
+#!/bin/bash
+
+qsub -v MOST_RECENT_SOCKET=`mostrecentsocket` -l mem=188GB -l ncpus=32 -l walltime=48:00:00 -l host=node21 -I
