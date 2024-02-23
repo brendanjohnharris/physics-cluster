@@ -1,4 +1,38 @@
 {
     "julia.executablePath": "/headnode2/bhar9988/build/julia-1.10.0/bin/julia",
-    "julia.NumThreads": 1
+    "julia.NumThreads": 1,
+    "multiCommand.commands": [
+        {
+            "command": "multiCommand.initrepl",
+            "sequence": [
+                "language-julia.connectREPL",
+            ]
+        },
+        {
+            "command": "multiCommand.startrepl",
+            "interval": 1000,
+            "sequence": [
+                "workbench.action.terminal.newInActiveWorkspace",
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "startrepl\n"
+                    }
+                },
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "julia\n"
+                    }
+                },
+                "workbench.action.terminal.paste",
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "\n"
+                    }
+                },
+            ]
+        },
+    ]
 }
