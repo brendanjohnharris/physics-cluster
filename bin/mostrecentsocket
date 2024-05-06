@@ -1,6 +1,6 @@
 #!/bin/bash
 
 # Find the most recent socket file in /tmp/ that we have read permissions for
-MOST_RECENT_SOCKET=$(find /tmp/ -type s -perm /u+r -printf '%T@ %p\n' | sort -n | tail -1 | awk '{print $2}' | tr -d '\n')
+MOST_RECENT_SOCKET=$(find /tmp/ -type s -perm /u+r -name "*jl*" -printf '%T@ %p\n' | sort -n | tail -1 | awk '{print $2}' | tr -d '\n')
 
 echo $MOST_RECENT_SOCKET

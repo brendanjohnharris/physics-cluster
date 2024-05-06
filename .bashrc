@@ -3,7 +3,7 @@
 
 # Source global definitions
 if [ -f /etc/bashrc ]; then
-	. /etc/bashrc
+    . /etc/bashrc
 fi
 alias julia='/headnode2/bhar9988/build/julia-1.9.0/bin/julia -t auto'
 export LD_LIBRARY_PATH=""
@@ -61,7 +61,7 @@ export CONDA_DEFAULT_ENV="bhar9988"
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/headnode2/bhar9988/build/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+__conda_setup="$('/headnode2/bhar9988/build/miniforge3/bin/conda' 'shell.bash' 'hook' 2>/dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else

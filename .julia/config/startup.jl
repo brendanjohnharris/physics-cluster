@@ -1,4 +1,4 @@
-ENV["JULIA_CPU_TARGET"] = "generic; native"
+ENV["JULIA_CPU_TARGET"] = "generic"
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
 ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
@@ -6,9 +6,14 @@ ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
 using Pkg
 ENV["PYTHON"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin/python"
 # ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
+ENV["FREETYPE_ABSTRACTION_FONT_PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/fonts/"
+ENV["JULIA_DEBUG"] = "SpatiotemporalMotifs" # loading,VSCodeServer
+ENV["JULIA_DISTRIBUTED"] = true
+# ENV["FORESIGHT_PATCHES"] = true
 using Revise
 using OhMyREPL
 using Downloads
+using Infiltrator
 colorscheme!("OneDark")
 enable_autocomplete_brackets(false)
 function template()
@@ -44,8 +49,6 @@ if !contains(gethostname(), "headnode") && haskey(ENV, "MOST_RECENT_SOCKET")
     # if !issocket(sock)
     #     run(cmd)
     # end
-
-    ENV["JULIA_DEBUG"] = "VSCodeServer"
     # using Sockets
     # using Dates
 

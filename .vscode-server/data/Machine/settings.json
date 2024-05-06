@@ -9,6 +9,30 @@
             ]
         },
         {
+            "command": "multiCommand.killrepl",
+            "sequence": [
+                "workbench.action.terminal.newInActiveWorkspace",
+                {
+                    "command": "command-runner.run",
+                    "args": {
+                        "command": "tmux kill-session -t juliarepl"
+                    }
+                },
+            ]
+        },
+        {
+            "command": "multiCommand.findrepl",
+            "sequence": [
+                "workbench.action.terminal.newInActiveWorkspace",
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "tmux attach -t juliarepl\n"
+                    }
+                },
+            ]
+        },
+        {
             "command": "multiCommand.startrepl",
             "interval": 1000,
             "sequence": [
@@ -16,7 +40,19 @@
                 {
                     "command": "workbench.action.terminal.sendSequence",
                     "args": {
+                        "text": "tmux new -s juliarepl\n"
+                    }
+                },
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
                         "text": "startrepl\n"
+                    }
+                },
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "cd '${workspaceFolder}'\u000D"
                     }
                 },
                 {
@@ -30,6 +66,12 @@
                     "command": "workbench.action.terminal.sendSequence",
                     "args": {
                         "text": "\n"
+                    }
+                },
+                {
+                    "command": "workbench.action.terminal.sendSequence",
+                    "args": {
+                        "text": "using Pkg; Pkg.activate(\"./\");\n"
                     }
                 },
             ]

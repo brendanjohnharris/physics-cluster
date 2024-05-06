@@ -1,11 +1,4 @@
 # #! /bin/csh
-# # @(#)cshrc 1.11 89/11/29 SMI
-# #
-# # Call system cshrc file
-
-# source /etc/cshrc
-
-# # Users may add customisation below
 
 # limit coredumpsize 0
 # umask 022
