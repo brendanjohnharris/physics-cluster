@@ -1,15 +1,17 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=16:mem=125GB
+#PBS -l select=1:ncpus=8:mem=25GB
+#PBS -q l40s
 #PBS -l walltime=96:00:00
 #PBS -o $HOME/jobs/PBS_julia.o
 #PBS -V
 #PBS -j oe
 #PBS -M bhar9988@uni.sydney.edu.au
 #PBS -m ae
-
-JULIA_DISTRIBUTED=true
-file="/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/scripts/calculations/cluster/power_spectra.jl"
+#PBS -q l40s
+# JULIA_DISTRIBUTED=true
+# file="/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/scripts/calculations/cluster/power_spectra.jl"
 # file="/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/scripts/plots/spike_ppc.jl"
+file="/headnode2/bhar9988/code/DDC/SpatiotemporalMotifs/scripts/plots/glass_brain.jl"
 chmod u+x $file
 $file 2>&1 | tee /headnode2/bhar9988/jobs/${PBS_JOBID}.log
 exit

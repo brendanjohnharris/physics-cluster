@@ -5,7 +5,6 @@
 if [ -f /etc/bashrc ]; then
     . /etc/bashrc
 fi
-alias julia='/headnode2/bhar9988/build/julia-1.9.0/bin/julia -t auto'
 export LD_LIBRARY_PATH=""
 export LD_PRELOAD=""
 export JULIA_NUM_THREADS="auto"
@@ -75,3 +74,7 @@ unset __conda_setup
 # <<< conda initialize <<<
 
 conda activate bhar9988
+
+if [[ $(hostname) =~ headnode* ]]; then
+    export JULIA_NUM_THREADS="1"
+fi

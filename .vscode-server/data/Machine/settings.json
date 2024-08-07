@@ -58,7 +58,7 @@
                 {
                     "command": "workbench.action.terminal.sendSequence",
                     "args": {
-                        "text": "julia\n"
+                        "text": "julia -t auto --heap-size-hint=`grep MemFree /proc/meminfo | awk '{print int($2 * 0.4) \"k\"}'`\n"
                     }
                 },
                 "workbench.action.terminal.paste",
@@ -71,10 +71,14 @@
                 {
                     "command": "workbench.action.terminal.sendSequence",
                     "args": {
-                        "text": "using Pkg; Pkg.activate(\"./\");\n"
+                        "text": "using Pkg; Pkg.activate(\"./\");display(Threads.nthreads())\n"
                     }
                 },
             ]
         },
+    ],
+    "julia.additionalArgs": [
+        "--heap-size-hint=500M",
+        "--threads=1"
     ]
 }
