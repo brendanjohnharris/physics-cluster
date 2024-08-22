@@ -61,3 +61,7 @@ if !contains(gethostname(), "headnode") && haskey(ENV, "MOST_RECENT_SOCKET")
     # VSCodeServer.serve(sock; is_dev="DEBUG_MODE=true" in Base.ARGS, crashreporting_pipename=raw"/tmp/vsc-jl-cr")
     # nothing # re-establishing connection with VSCode
 end
+if contains(gethostname(), "gpu")
+    using CUDA
+    CUDA.set_runtime_version!(v"12.5.0")
+end
