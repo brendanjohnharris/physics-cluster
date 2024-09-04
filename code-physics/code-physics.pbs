@@ -1,0 +1,6 @@
+#PBS -l mem=8GB
+#PBS -l ncpus=4
+#PBS -l walltime=24:00:00
+#code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
+current_node=`echo $HOSTNAME | cut -d '.' -f1`
+echo $current_node >> ~/code-physics/current_node

@@ -69,5 +69,5 @@ if(`hostname`:q =~ headnode*) then
 	setenv JULIA_NUM_THREADS "1"
 endif
 
-source $HOME/build/miniforge3/etc/profile.d/conda.csh
+source $HOME/build/miniforge3/etc/profile.d/conda.csh > /dev/null
 conda activate bhar9988

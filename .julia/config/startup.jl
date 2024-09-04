@@ -1,4 +1,4 @@
-ENV["JULIA_CPU_TARGET"] = "generic"
+ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all"
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
 ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
@@ -9,6 +9,7 @@ ENV["PYTHON"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin/python"
 ENV["FREETYPE_ABSTRACTION_FONT_PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/fonts/"
 ENV["JULIA_DEBUG"] = "SpatiotemporalMotifs" # loading,VSCodeServer
 ENV["JULIA_DISTRIBUTED"] = true
+ENV["JULIA_WORKER_TIMEOUT"] = 600
 # ENV["FORESIGHT_PATCHES"] = true
 using Revise
 using OhMyREPL
@@ -61,7 +62,7 @@ if !contains(gethostname(), "headnode") && haskey(ENV, "MOST_RECENT_SOCKET")
     # VSCodeServer.serve(sock; is_dev="DEBUG_MODE=true" in Base.ARGS, crashreporting_pipename=raw"/tmp/vsc-jl-cr")
     # nothing # re-establishing connection with VSCode
 end
-if contains(gethostname(), "gpu")
-    using CUDA
-    CUDA.set_runtime_version!(v"12.5.0")
-end
+# if contains(gethostname(), "gpu")
+#     using CUDA
+#     CUDA.set_runtime_version!(v"12.5.0")
+# end
