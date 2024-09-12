@@ -1,0 +1,2 @@
+#! /bin/bash
+ssh bhar9988@headnode.physics.usyd.edu.au "qsub ~/code-physics/code-physics.pbs"
