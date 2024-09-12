@@ -18,7 +18,7 @@ module load hdf/5/1.14.1-2_intel2021
 set -U fish_user_paths /usr/physics/python/anaconda3/bin/ $fish_user_paths
 set -U fish_user_paths /headnode2/bhar9988/.conda/envs/bhar9988/bin/ $fish_user_paths
 set -U fish_user_paths /headnode2/bhar9988/build/julia-1.10.0/bin/ $fish_user_paths
-set -U fish_user_paths /headnode2/bhar9988/build/vscode/bin/ $fish_user_paths
+set -U fish_user_paths /headnode2/bhar9988/build/codecli/ $fish_user_paths
 set TERM xterm-256color
 
 function fish_user_key_bindings
