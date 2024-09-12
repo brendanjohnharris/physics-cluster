@@ -1,6 +1,5 @@
 {
     "julia.executablePath": "/headnode2/bhar9988/build/julia-1.10.0/bin/julia",
-    "julia.NumThreads": 1,
     "multiCommand.commands": [
         {
             "command": "multiCommand.initrepl",
@@ -77,8 +76,5 @@
             ]
         },
     ],
-    "julia.additionalArgs": [
-        "--heap-size-hint=500M",
-        "--threads=1"
-    ]
+    "julia.NumThreads": "auto",
 }

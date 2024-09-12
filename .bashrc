@@ -8,6 +8,7 @@ fi
 export LD_LIBRARY_PATH=""
 export LD_PRELOAD=""
 export JULIA_NUM_THREADS="auto"
+export VSCODE_CLI_USE_FILE_KEYCHAIN="true"
 # User specific aliases and functions
 #module load freeglut/3.0.0
 #module load ncurses/6.0
@@ -51,7 +52,7 @@ alias tmux="TERM=xterm-256color /headnode2/bhar9988/.conda/envs/bhar9988/bin/tmu
 export CONDA_DEFAULT_ENV="bhar9988"
 # export SHELL=/bin/bash #/headnode2/bhar9988/.conda/envs/bhar9988/bin/fish
 export PATH="/headnode2/bhar9988/.conda/envs/bhar9988/bin:/headnode2/bhar9988/build/vscode/bin/:$PATH"
-export PATH="/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:/usr/physics/pbspro/bin:$HOME/build/miniforge3/condabin/:$PATH"
+export PATH="/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:/usr/physics/pbspro/bin:$PATH"
 # export LD_LIBRARY_PATH="/headnode2/bhar9988/.conda/envs/bhar9988/lib/:$LD_LIBRARY_PATH"
 test -e "$HOME/.shellfishrc" && source "$HOME/.shellfishrc"
 # . /usr/physics/python/anaconda3/etc/profile.d/conda.sh  # commented out by conda initialize

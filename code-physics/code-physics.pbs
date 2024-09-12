@@ -1,6 +1,13 @@
-#PBS -l mem=8GB
-#PBS -l ncpus=4
+#PBS -j oe
+#PBS -o /headnode2/bhar9988/jobs/PBS_code-physics.o
+#PBS -l mem=72GB
+#PBS -l ncpus=16
 #PBS -l walltime=24:00:00
-#code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
-current_node=`echo $HOSTNAME | cut -d '.' -f1`
+
+# code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
+set current_node=`echo $HOSTNAME | cut -d '.' -f1`
+echo "VSCODE_CLI_USE_FILE_KEYCHAIN=$VSCODE_CLI_USE_FILE_KEYCHAIN" >> ~/code-physics/current_node
 echo $current_node >> ~/code-physics/current_node
+code-tunnel tunnel --accept-server-license-terms --name code-physics > /headnode2/bhar9988/code-physics/code-physics.log 
+echo "complete" >> ~/code-physics/current_node
+

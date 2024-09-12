@@ -27,6 +27,7 @@ setenv LD_LIBRARY_PATH ""
 setenv LD_PRELOAD ""
 setenv JULIA_NUM_THREADS "auto"
 setenv JULIA_REVISE_POLL 1
+setenv VSCODE_CLI_USE_FILE_KEYCHAIN "true"
 setenv TERM "xterm-256color"
 #setenv TERM vt100
 #exec $HOME/build/fish/fish
@@ -35,9 +36,8 @@ setenv TERM "xterm-256color"
 #conda activate bhar9988
 setenv CONDA_DEFAULT_ENV "bhar9988"
 setenv PATH /headnode2/bhar9988/.conda/envs/bhar9988/bin:/headnode2/bhar9988/build/vscode/bin/:$PATH
-setenv PATH /headnode2/bhar9988/build/miniforge3/bin:$PATH
 setenv R_LIBS_USER "/headnode2/bhar9988/rpackages/"
-setenv PATH "/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:$HOME/build/miniforge3/condabin/:$PATH"
+setenv PATH "/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:$PATH"
 # setenv LD_LIBRARY_PATH "/headnode2/bhar9988/.conda/envs/bhar9988/lib/:$LD_LIBRARY_PATH" # For vscode server, we have conda installed libgcc here
 if(`hostname`:q =~ node*) then
 	# ssh -D 8080 -f -C -q -N bhar9988@headnode

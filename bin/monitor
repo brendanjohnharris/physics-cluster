@@ -4,10 +4,10 @@ optional_arg="bhar9988"
 # Check if an optional argument is provided without a flag
 if [ $# -gt 0 ] && [[ ! "$1" =~ ^- ]]; then
     optional_arg="$1"
-    shift  # Shift past the optional argument
+    shift # Shift past the optional argument
 fi
 horz="--------------------------------------------------------------------------------"
-ln=`qstat -u bhar9988 | grep -on "$optional_arg" | awk -F: '{ if (length($NF) > max) { max = length($NF); line_number = $1 } } END { print line_number }'`
-proc=`qstat -u bhar9988 | sed -n "${ln}p" | awk '!/\[\]/ {print $1}'`
+ln=$(qstat -u bhar9988 | grep -on "$optional_arg" | awk -F: '{ if (length($NF) > max) { max = length($NF); line_number = $1 } } END { print line_number }')
+proc=$(qstat -u bhar9988 | sed -n "${ln}p" | awk '!/\[\]/ {print $1}')
 filename="/headnode2/bhar9988/jobs/${proc}.log"
 viddy --pty --interval 1 "qload && echo $horz && qstat -u bhar9988 -t -n1 -r && echo $horz && qstat -u bhar9988 -t -n1 -i && echo $horz && echo "$filename" && tail -n 20 $filename"
