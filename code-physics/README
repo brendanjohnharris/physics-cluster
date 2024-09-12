@@ -1,2 +1,3 @@
-Make sure to set VSCODE_CLI_USE_FILE_KEYCHAIN=true as an environment variable, then run code-tunnel tunnel interactively to log in for the first time
-
+Make sure to set VSCODE_CLI_USE_FILE_KEYCHAIN=true as an environment variable, then run `code tunnel` interactively to log in for the first time.
+You can start the server semi-automatically with `start-code-physics`.
+Make sure to clean up after yourself by closing the tmux session.
