@@ -8,7 +8,7 @@ fi
 export LD_LIBRARY_PATH=""
 export LD_PRELOAD=""
 export JULIA_NUM_THREADS="auto"
-export VSCODE_CLI_USE_FILE_KEYCHAIN="true"
+export VSCODE_CLI_USE_FILE_KEYCHAIN=1
 # User specific aliases and functions
 #module load freeglut/3.0.0
 #module load ncurses/6.0

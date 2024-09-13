@@ -5,5 +5,26 @@
 * the Visual Studio Code Server License Terms (https://aka.ms/vscode-server-license) and
 * the Microsoft Privacy Statement (https://privacy.microsoft.com/en-US/privacystatement).
 *
-[2024-09-12 13:56:24] info Using GitHub for authentication, run `code tunnel user login --provider <provider>` option to change this.
-To grant access to the server, please log into https://github.com/login/device and use code CAED-264A
+
+Open this link in your browser https://vscode.dev/tunnel/code-physics
+
+[2024-09-13 13:59:45] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 2
+[2024-09-13 13:59:45] info [russh::server] wrote id
+[2024-09-13 13:59:45] info [russh::server] read other id
+[2024-09-13 13:59:45] info [russh::server] session is running
+[2024-09-13 13:59:46] info [rpc.0] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-4849ca9bdf9666755eb463db297b69e5385090e3/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-4849ca9bdf9666755eb463db297b69e5385090e3/pid.txt for a running server...
+[2024-09-13 13:59:46] info [rpc.0] Starting server...
+[2024-09-13 13:59:46] info [rpc.0] Server started
+[2024-09-13 13:59:49] info [rpc.0] Forwarding port 46757 (public=false)
+[2024-09-13 13:59:50] info [rpc.0] Forwarding port 41463 (public=false)
+[2024-09-13 13:59:50] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 3
+[2024-09-13 13:59:50] info [russh::server] wrote id
+[2024-09-13 13:59:50] info [russh::server] read other id
+[2024-09-13 13:59:50] info [russh::server] session is running
+[2024-09-13 13:59:50] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 4
+[2024-09-13 13:59:50] info [russh::server] wrote id
+[2024-09-13 13:59:51] info [russh::server] read other id
+[2024-09-13 13:59:51] info [russh::server] session is running
+[2024-09-13 14:00:01] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
+[2024-09-13 14:01:40] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
+[2024-09-13 14:01:46] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)

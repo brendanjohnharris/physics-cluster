@@ -26,7 +26,7 @@ setenv LD_LIBRARY_PATH ""
 setenv LD_PRELOAD ""
 setenv JULIA_NUM_THREADS "auto"
 setenv JULIA_REVISE_POLL 1
-setenv VSCODE_CLI_USE_FILE_KEYCHAIN "true"
+setenv VSCODE_CLI_USE_FILE_KEYCHAIN 1
 setenv TERM "xterm-256color"
 #setenv TERM vt100
 #exec $HOME/build/fish/fish

@@ -1,4 +1,4 @@
-ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all"
+ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all"
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
 ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"

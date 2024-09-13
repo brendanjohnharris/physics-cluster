@@ -2,7 +2,7 @@
 #PBS -j oe
 #PBS -o /headnode2/bhar9988/jobs/PBS_code-physics.o
 #PBS -l mem=125GB
-#PBS -l ncpus=32
+#PBS -l ncpus=16
 #PBS -l walltime=24:00:00
 echo $SHELL
 # code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
