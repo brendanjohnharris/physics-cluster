@@ -9,7 +9,7 @@ Navigate to some build directory, e.g. `~/build/`, then install:
 (or another conda supplier if you prefer. Make sure to `conda init` for both bash and tcsh)
 3. Tmux via conda: `conda install conda-forge::tmux`
 (you can install other helpful things too, like the fish shell or the 'killall' command, through conda)
-4. Julia via juliaup: https://github.com/JuliaLang/juliaup
+4. Julia via juliaup: https://github.com/JuliaLang/juliaup (if you use Julia)
 
 Add the relevant binaries to your path (in both `~/.tcshrc` and `~/.bashrc`; see examples in this repo).
 
