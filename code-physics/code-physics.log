@@ -8,23 +8,144 @@
 
 Open this link in your browser https://vscode.dev/tunnel/code-physics
 
-[2024-09-13 13:59:45] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 2
-[2024-09-13 13:59:45] info [russh::server] wrote id
-[2024-09-13 13:59:45] info [russh::server] read other id
-[2024-09-13 13:59:45] info [russh::server] session is running
-[2024-09-13 13:59:46] info [rpc.0] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-4849ca9bdf9666755eb463db297b69e5385090e3/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-4849ca9bdf9666755eb463db297b69e5385090e3/pid.txt for a running server...
-[2024-09-13 13:59:46] info [rpc.0] Starting server...
-[2024-09-13 13:59:46] info [rpc.0] Server started
-[2024-09-13 13:59:49] info [rpc.0] Forwarding port 46757 (public=false)
-[2024-09-13 13:59:50] info [rpc.0] Forwarding port 41463 (public=false)
-[2024-09-13 13:59:50] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 3
-[2024-09-13 13:59:50] info [russh::server] wrote id
-[2024-09-13 13:59:50] info [russh::server] read other id
-[2024-09-13 13:59:50] info [russh::server] session is running
-[2024-09-13 13:59:50] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 4
-[2024-09-13 13:59:50] info [russh::server] wrote id
-[2024-09-13 13:59:51] info [russh::server] read other id
-[2024-09-13 13:59:51] info [russh::server] session is running
-[2024-09-13 14:00:01] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
-[2024-09-13 14:01:40] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
-[2024-09-13 14:01:46] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
+[2025-03-17 17:46:12] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 2
+[2025-03-17 17:46:12] info [russh::server] wrote id
+[2025-03-17 17:46:12] info [russh::server] read other id
+[2025-03-17 17:46:12] info [russh::server] session is running
+[2025-03-17 17:46:13] info [rpc.0] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 17:46:13] info [rpc.0] Starting server...
+[2025-03-17 17:46:13] info [rpc.0] Server started
+[2025-03-17 17:46:23] info [rpc.0] Forwarding port 35731 (public=false)
+[2025-03-17 17:46:24] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 3
+[2025-03-17 17:46:24] info [russh::server] wrote id
+[2025-03-17 17:46:24] info [russh::server] read other id
+[2025-03-17 17:46:24] info [russh::server] session is running
+[2025-03-17 17:46:24] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 4
+[2025-03-17 17:46:24] info [russh::server] wrote id
+[2025-03-17 17:46:24] info [russh::server] read other id
+[2025-03-17 17:46:24] info [russh::server] session is running
+[2025-03-17 17:46:39] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
+[2025-03-17 17:47:33] info [rpc.3] Disposed of connection to running server.
+[2025-03-17 17:47:33] info [rpc.2] Disposed of connection to running server.
+[2025-03-17 17:47:37] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 5
+[2025-03-17 17:47:37] info [russh::server] wrote id
+[2025-03-17 17:47:37] info [russh::server] read other id
+[2025-03-17 17:47:37] info [russh::server] session is running
+[2025-03-17 17:47:40] info [rpc.0] Forwarding port 35731 (public=false)
+[2025-03-17 17:47:41] warn [rpc.0] error handling call: NoAttachedServerError(NoAttachedServerError)
+[2025-03-17 17:47:43] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 6
+[2025-03-17 17:47:43] info [russh::server] wrote id
+[2025-03-17 17:47:43] info [russh::server] read other id
+[2025-03-17 17:47:43] info [russh::server] session is running
+[2025-03-17 17:48:07] info [rpc.0] Forwarding port 33183 (public=false)
+[2025-03-17 17:49:12] info [rpc.0] Unforwarding port 33183
+[2025-03-17 17:49:12] info [rpc.0] Forwarding port 45357 (public=false)
+[2025-03-17 17:54:53] info [rpc.0] Forwarding port 38651 (public=false)
+[2025-03-17 18:46:09] info [rpc.0] Unforwarding port 45357
+[2025-03-17 18:46:13] info [rpc.0] Forwarding port 43299 (public=false)
+[2025-03-17 18:55:36] info [rpc.0] Unforwarding port 38651
+[2025-03-17 18:55:38] info [rpc.0] Forwarding port 42501 (public=false)
+[2025-03-17 18:59:29] info [rpc.0] Unforwarding port 42501
+[2025-03-17 18:59:32] info [rpc.0] Forwarding port 37469 (public=false)
+[2025-03-17 18:59:39] info [rpc.0] Unforwarding port 37469
+[2025-03-17 18:59:40] info [rpc.0] Forwarding port 46285 (public=false)
+[2025-03-17 19:03:13] info [rpc.0] Unforwarding port 46285
+[2025-03-17 19:03:15] info [rpc.0] Forwarding port 43617 (public=false)
+[2025-03-17 19:04:05] info [rpc.0] Unforwarding port 43617
+[2025-03-17 19:04:07] info [rpc.0] Forwarding port 35283 (public=false)
+[2025-03-17 19:06:20] info [rpc.0] Unforwarding port 35283
+[2025-03-17 19:06:22] info [rpc.0] Forwarding port 42415 (public=false)
+[2025-03-17 19:08:12] info [rpc.0] Unforwarding port 42415
+[2025-03-17 19:08:16] info [rpc.0] Forwarding port 43857 (public=false)
+[2025-03-17 19:14:19] info [rpc.0] Unforwarding port 43857
+[2025-03-17 19:14:21] info [rpc.0] Forwarding port 37659 (public=false)
+[2025-03-17 19:15:44] info [rpc.0] Unforwarding port 37659
+[2025-03-17 19:15:48] info [rpc.0] Forwarding port 35283 (public=false)
+[2025-03-17 19:15:52] info [rpc.0] Disposed of connection to running server.
+[2025-03-17 19:15:54] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 7
+[2025-03-17 19:15:54] info [russh::server] wrote id
+[2025-03-17 19:15:54] info [russh::server] read other id
+[2025-03-17 19:15:54] info [russh::server] session is running
+[2025-03-17 19:15:54] info [rpc.6] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 19:15:54] info [rpc.6] Found running server (pid=535345)
+[2025-03-17 19:53:25] info [rpc.6] Disposed of connection to running server.
+[2025-03-17 19:53:27] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 8
+[2025-03-17 19:53:27] info [russh::server] wrote id
+[2025-03-17 19:53:27] info [russh::server] read other id
+[2025-03-17 19:53:27] info [russh::server] session is running
+[2025-03-17 19:53:28] info [rpc.7] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 19:53:28] info [rpc.7] Found running server (pid=535345)
+[2025-03-17 20:26:11] info [rpc.7] Disposed of connection to running server.
+[2025-03-17 20:26:24] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 9
+[2025-03-17 20:26:24] info [russh::server] wrote id
+[2025-03-17 20:26:24] info [russh::server] read other id
+[2025-03-17 20:26:24] info [russh::server] session is running
+[2025-03-17 20:26:24] info [rpc.8] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 20:26:24] info [rpc.8] Found running server (pid=535345)
+[2025-03-17 22:09:51] info [rpc.8] Disposed of connection to running server.
+[2025-03-17 22:09:53] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 10
+[2025-03-17 22:09:53] info [russh::server] wrote id
+[2025-03-17 22:09:53] info [russh::server] read other id
+[2025-03-17 22:09:53] info [russh::server] session is running
+[2025-03-17 22:09:54] info [rpc.9] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 22:09:54] info [rpc.9] Found running server (pid=535345)
+[2025-03-17 22:47:35] info [rpc.9] Disposed of connection to running server.
+[2025-03-17 22:47:37] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 11
+[2025-03-17 22:47:37] info [russh::server] wrote id
+[2025-03-17 22:47:37] info [russh::server] read other id
+[2025-03-17 22:47:37] info [russh::server] session is running
+[2025-03-17 22:47:38] info [rpc.10] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 22:47:38] info [rpc.10] Found running server (pid=535345)
+[2025-03-17 23:57:34] info [rpc.10] Disposed of connection to running server.
+[2025-03-17 23:57:36] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 12
+[2025-03-17 23:57:36] info [russh::server] wrote id
+[2025-03-17 23:57:36] info [russh::server] read other id
+[2025-03-17 23:57:36] info [russh::server] session is running
+[2025-03-17 23:57:36] info [rpc.11] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-17 23:57:36] info [rpc.11] Found running server (pid=535345)
+[2025-03-18 00:06:39] info [rpc.4] Disposed of connection to running server.
+[2025-03-18 00:06:39] info [rpc.5] Disposed of connection to running server.
+[2025-03-18 00:06:49] info [rpc.11] Disposed of connection to running server.
+[2025-03-18 10:04:15] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 13
+[2025-03-18 10:04:15] info [russh::server] wrote id
+[2025-03-18 10:04:15] info [russh::server] read other id
+[2025-03-18 10:04:15] info [russh::server] session is running
+[2025-03-18 10:04:16] info [rpc.12] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-18 10:04:16] info [rpc.12] Starting server...
+[2025-03-18 10:04:16] info [rpc.12] Server started
+[2025-03-18 10:06:34] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 14
+[2025-03-18 10:06:34] info [russh::server] wrote id
+[2025-03-18 10:06:34] info [russh::server] read other id
+[2025-03-18 10:06:34] info [russh::server] session is running
+[2025-03-18 10:06:34] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 15
+[2025-03-18 10:06:34] info [russh::server] wrote id
+[2025-03-18 10:06:34] info [russh::server] read other id
+[2025-03-18 10:06:34] info [russh::server] session is running
+[2025-03-18 10:13:52] info [rpc.14] Disposed of connection to running server.
+[2025-03-18 10:13:52] info [rpc.15] Disposed of connection to running server.
+[2025-03-18 10:13:56] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 16
+[2025-03-18 10:13:56] info [russh::server] wrote id
+[2025-03-18 10:13:56] info [russh::server] read other id
+[2025-03-18 10:13:56] info [russh::server] session is running
+[2025-03-18 10:13:58] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 17
+[2025-03-18 10:13:58] info [russh::server] wrote id
+[2025-03-18 10:13:58] info [russh::server] read other id
+[2025-03-18 10:13:58] info [russh::server] session is running
+[2025-03-18 10:52:50] info [rpc.17] Disposed of connection to running server.
+[2025-03-18 10:52:50] info [rpc.16] Disposed of connection to running server.
+[2025-03-18 10:52:50] info [rpc.12] Disposed of connection to running server.
+[2025-03-18 11:38:40] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 18
+[2025-03-18 11:38:40] info [russh::server] wrote id
+[2025-03-18 11:38:40] info [russh::server] read other id
+[2025-03-18 11:38:40] info [russh::server] session is running
+[2025-03-18 11:38:41] info [rpc.18] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-18 11:38:41] info [rpc.18] Found running server (pid=760851)
+[2025-03-18 11:38:45] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 19
+[2025-03-18 11:38:45] info [russh::server] wrote id
+[2025-03-18 11:38:45] info [russh::server] read other id
+[2025-03-18 11:38:45] info [russh::server] session is running
+[2025-03-18 11:38:45] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 20
+[2025-03-18 11:38:45] info [russh::server] wrote id
+[2025-03-18 11:38:45] info [russh::server] read other id
+[2025-03-18 11:38:45] info [russh::server] session is running
+[2025-03-18 11:39:45] info [rpc.18] Forwarding port 41167 (public=false)

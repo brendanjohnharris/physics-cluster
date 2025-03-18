@@ -32,7 +32,7 @@ export VSCODE_CLI_USE_FILE_KEYCHAIN=1
 #module load ffmpeg/4.3.1
 #module load zlib/1.2.11
 #module load cuda/8.0.44
-#module load matlab/R2019a
+module load Matlab2019b
 #module load jupyter/base
 
 #export PATH="$HOME/clustertools/:$HOME/build/glib/usr/bin:$HOME/build/glib/bin:$PATH"
@@ -53,9 +53,13 @@ export CONDA_DEFAULT_ENV="bhar9988"
 # export SHELL=/bin/bash #/headnode2/bhar9988/.conda/envs/bhar9988/bin/fish
 export PATH="/headnode2/bhar9988/build/codecli/:$PATH"
 export PATH="/headnode2/bhar9988/.conda/envs/LaTeX/bin:$HOME/build/julia-1.10.0/bin:/usr/physics/pbspro/bin:$PATH"
+export PATH="$HOME/code-physics/:$PATH"
 # export LD_LIBRARY_PATH="/headnode2/bhar9988/.conda/envs/bhar9988/lib/:$LD_LIBRARY_PATH"
 test -e "$HOME/.shellfishrc" && source "$HOME/.shellfishrc"
 # . /usr/physics/python/anaconda3/etc/profile.d/conda.sh  # commented out by conda initialize
+
+# export LD_LIBRARY_PATH="$HOME/build/cudnn/lib64:$LD_LIBRARY_PATH"
+# export CPATH="$HOME/build/cudnn/include:$CPATH"
 
 export CONDA_DEFAULT_ENV="bhar9988"
 

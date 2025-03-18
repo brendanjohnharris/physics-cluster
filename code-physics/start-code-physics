@@ -1,2 +1,6 @@
 #! /bin/bash
 ssh bhar9988@headnode.physics.usyd.edu.au "qsub ~/code-physics/code-physics.pbs"
+rm -f ~/code-physics/code-physics.log
+touch ~/code-physics/code-physics.log
+tail -f ~/code-physics/code-physics.log
+

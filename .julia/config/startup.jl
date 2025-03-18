@@ -1,8 +1,9 @@
-ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all"
+ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
 ENV["PATH"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
 # ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
+ENV["JULIA_CONDAPKG_BACKEND"] = "MicroMamba"
 using Pkg
 ENV["PYTHON"] = "/headnode2/bhar9988/.conda/envs/bhar9988/bin/python"
 # ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
@@ -10,7 +11,10 @@ ENV["FREETYPE_ABSTRACTION_FONT_PATH"] = "/headnode2/bhar9988/.conda/envs/bhar998
 ENV["JULIA_DEBUG"] = "SpatiotemporalMotifs" # loading,VSCodeServer
 ENV["JULIA_DISTRIBUTED"] = true
 ENV["JULIA_WORKER_TIMEOUT"] = 600
+ENV["DRWATSON_STOREPATCH"] = true
 # ENV["FORESIGHT_PATCHES"] = true
+# ENV["DEWDROP_BACKEND"] = "gpu"
+# ENV["XLA_PYTHON_CLIENT_PREALLOCATE"] = false # For multiple JAX instances
 using Revise
 using OhMyREPL
 using Downloads
@@ -42,7 +46,7 @@ function template()
     end
 end
 
-
+#run(`conda activate $(joinpath(Base.active_project(), "../.CondaPkg/env/"))`)
 if !contains(gethostname(), "headnode") && haskey(ENV, "MOST_RECENT_SOCKET")
     sock = ENV["MOST_RECENT_SOCKET"]
 
@@ -65,4 +69,9 @@ end
 # if contains(gethostname(), "gpu")
 #     using CUDA
 #     CUDA.set_runtime_version!(v"12.5.0")
+# end
+# if false
+# if splitpath(Base.active_project())[end-1] == "Dewdrop.jl"
+# ENV["JULIA_CONDAPKG_ENV"] = "/headnode2/bhar9988/.conda/envs/bhar9988/"
+# end
 # end
