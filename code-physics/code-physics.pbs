@@ -1,11 +1,9 @@
 #! /bin/tcsh
 #PBS -j oe
-#PBS -o /headnode2/bhar9988/jobs/PBS_code-physics.o
-#PBS -l mem=120GB
-#PBS -l ncpus=33
+#PBS -l mem=10GB
+#PBS -l ncpus=4
 #PBS -l walltime=24:00:00
-#PBS -q h100
-# PBS -q l40s
+# PBS -q h100
 echo $SHELL
 # code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
 set CURRENT_NODE=`echo $HOSTNAME | cut -d '.' -f1`
