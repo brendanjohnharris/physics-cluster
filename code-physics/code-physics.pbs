@@ -9,7 +9,7 @@ echo $SHELL
 set CURRENT_NODE=`echo $HOSTNAME | cut -d '.' -f1`
 echo "VSCODE_CLI_USE_FILE_KEYCHAIN=$VSCODE_CLI_USE_FILE_KEYCHAIN" >> ~/code-physics/current_node
 echo $CURRENT_NODE >> ~/code-physics/current_node
-code tunnel --accept-server-license-terms --name code-physics > /headnode2/bhar9988/code-physics/code-physics.log
+code tunnel --accept-server-license-terms --name code-physics > $HOME/code-physics/code-physics.log
 echo "complete" >> ~/code-physics/current_node
 
 

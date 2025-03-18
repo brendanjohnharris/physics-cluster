@@ -27,3 +27,9 @@ Open this link in your browser https://vscode.dev/tunnel/code-physics
 [2025-03-18 12:27:07] info [russh::server] session is running
 [2025-03-18 12:27:07] info [russh::server] read other id
 [2025-03-18 12:27:07] info [russh::server] session is running
+[2025-03-18 12:42:38] info [tunnels::connections::relay_tunnel_host] Opened new client on channel 5
+[2025-03-18 12:42:38] info [russh::server] wrote id
+[2025-03-18 12:42:38] info [russh::server] read other id
+[2025-03-18 12:42:38] info [russh::server] session is running
+[2025-03-18 12:42:39] info [rpc.4] Checking /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/log.txt and /headnode2/bhar9988/.vscode/cli/servers/Stable-6609ac3d66f4eade5cf376d1cb76f13985724bcb/pid.txt for a running server...
+[2025-03-18 12:42:39] info [rpc.4] Found running server (pid=543677)
