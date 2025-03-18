@@ -1,0 +1,8 @@
+#! /bin/tcsh
+#PBS -j oe
+#PBS -l mem=3GB
+#PBS -l ncpus=2
+#PBS -l walltime=24:00:00
+echo $SHELL
+echo $PWD
+date

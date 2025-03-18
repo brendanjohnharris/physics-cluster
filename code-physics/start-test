@@ -1,0 +1,7 @@
+#! /bin/bash
+user="$(whoami)"
+hostname="$user@headnode.physics.usyd.edu.au"
+echo "Connecting to $hostname"
+mkdir -p ~/jobs/
+ssh $hostname "qsub -o $HOME/jobs/PBS_code-physics.o ~/code-physics/test.pbs"
+
