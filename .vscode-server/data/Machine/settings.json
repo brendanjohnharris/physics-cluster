@@ -1,6 +1,0 @@
-{
-    "julia.executablePath": "/headnode2/bhar9988/build/julia-1.10.0/bin/julia",
-    "julia.persistentSession.shell": "/headnode2/bhar9988/.conda/envs/bhar9988/bin/fish",
-    "julia.NumThreads": "auto",
-    "MATLAB.installPath": "/usr/physics/matlab/matlab2019b"
-}

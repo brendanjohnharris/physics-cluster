@@ -1,11 +1,11 @@
 # alias module='eval /usr/physics/Modules/3.2.8/bin/modulecmd bash'
 # alias code='$HOME/build/vscode/bin/code --no-sandbox'
 
-alias julia='$HOME/build/julia-1.10.0/bin/julia'
-module load pbspro
+alias julia='$HOME/.juliaup/bin/julia'
+# module load pbspro
 # module load gsl-2.7
-module load Anaconda3-5.1.0
-module load hdf/5/1.14.1-2_intel2021
+# module load Anaconda3-5.1.0
+# module load hdf/5/1.14.1-2_intel2021
 
 # setenv LD_LIBRARY_PATH ""
 # setenv LD_PRELOAD=""
@@ -13,12 +13,13 @@ module load hdf/5/1.14.1-2_intel2021
 # setenv CONDA_DEFAULT_ENV="bhar9988"
 # set -Ux LD_LIBRARY_PATH ""
 
-# fish_add_path /headnode2/bhar9988/.conda/envs/bhar9988/bin:/headnode2/bhar9988/build/vscode/bin/
+# fish_add_path /taiji1/bhar9988/.conda/envs/bhar9988/bin:/taiji1/bhar9988/build/vscode/bin/
 # fish_add_path $HOME/build/julia-1.10.0/bin
-set -U fish_user_paths /usr/physics/python/anaconda3/bin/ $fish_user_paths
-set -U fish_user_paths /headnode2/bhar9988/.conda/envs/bhar9988/bin/ $fish_user_paths
-set -U fish_user_paths /headnode2/bhar9988/build/julia-1.10.0/bin/ $fish_user_paths
-set -U fish_user_paths /headnode2/bhar9988/build/codecli/ $fish_user_paths
+# set -U fish_user_paths /usr/physics/python/anaconda3/bin/ $fish_user_paths
+# set fish_user_paths /taiji1/bhar9988/juliaup/bin/ $fish_user_paths
+# set fish_user_paths /taiji1/bhar9988/.conda/envs/bhar9988/bin/ $fish_user_paths
+# set -U fish_user_paths /taiji1/bhar9988/build/julia-1.10.0/bin/ $fish_user_paths
+# set fish_user_paths /taiji1/bhar9988/build/codecli/ $fish_user_paths
 set TERM xterm-256color
 
 function fish_user_key_bindings
@@ -40,13 +41,13 @@ end
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-if test -f /headnode2/bhar9988/build/miniforge3/bin/conda
-    eval /headnode2/bhar9988/build/miniforge3/bin/conda "shell.fish" "hook" $argv | source
+if test -f /taiji1/bhar9988/build/miniforge3/bin/conda
+    eval /taiji1/bhar9988/build/miniforge3/bin/conda "shell.fish" "hook" $argv | source
 else
-    if test -f "/headnode2/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
-        . "/headnode2/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
+    if test -f "/taiji1/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
+        . "/taiji1/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
     else
-        set -x PATH "/headnode2/bhar9988/build/miniforge3/bin" $PATH
+        set -x PATH "/taiji1/bhar9988/build/miniforge3/bin" $PATH
     end
 end
 # <<< conda initialize <<<

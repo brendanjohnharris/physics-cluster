@@ -1,9 +1,37 @@
 #! /bin/bash
+workdir="$HOME/.vscode/cli/"
+name="code-physics"
+queue="defaultQ"
+
+extra_args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -w|--workdir)
+            workdir="$2"
+            shift 2
+            ;;
+        -n|--name)
+            name="$2"
+            shift 2
+            ;;
+        -q|--queue)
+            queue="$2"
+            shift 2
+            ;;
+        *)
+            extra_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
 user="$(whoami)"
 hostname="$user@headnode.physics.usyd.edu.au"
 echo "Connecting to $hostname"
 mkdir -p ~/jobs/
-ssh $hostname "qsub -o $HOME/jobs/PBS_code-physics.o ~/code-physics/code-physics.pbs"
-rm -f ~/code-physics/code-physics.log
-touch ~/code-physics/code-physics.log
-tail -f ~/code-physics/code-physics.log
+rm -f ~/code-physics/$name.log
+touch ~/code-physics/$name.log
+sshcmd="/bin/bash -c \"export workdir='$workdir'; export name='$name'; qsub -o '$HOME/jobs/PBS_code-physics.o' -v workdir,name -q '$queue' ${extra_args[*]} ~/code-physics/code-physics.pbs\""
+# sshcmd="/bin/bash -c \"qsub -o '$HOME/jobs/PBS_code-physics.o' -q '$queue' ~/code-physics/code-physics.pbs\""
+ssh $hostname $sshcmd
+tail -f ~/code-physics/$name.log

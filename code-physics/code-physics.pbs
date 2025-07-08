@@ -1,15 +1,30 @@
 #! /bin/tcsh
 #PBS -j oe
-#PBS -l mem=10GB
+#PBS -l mem=128GB
+#PBS -l vmem=128GB
 #PBS -l ncpus=4
-#PBS -l walltime=24:00:00
-# PBS -q h100
+#PBS -l walltime=12:00:00
 echo $SHELL
-# code-tunnel tunnel 2>&1 | tee ~/code-physics/${PBS_JOBID}.log
+
+if (! $?workdir) then
+	set workdir="$HOME/.vscode/cli/"
+endif
+if (! $?name) then
+	set name="code-physics"
+endif
+if (! $?queue) then
+	set queue="physics"
+endif
+
+echo "workdir=$workdir"
+echo "name=$name"
+echo "queue=$queue"
+
 set CURRENT_NODE=`echo $HOSTNAME | cut -d '.' -f1`
 echo "VSCODE_CLI_USE_FILE_KEYCHAIN=$VSCODE_CLI_USE_FILE_KEYCHAIN" >> ~/code-physics/current_node
 echo $CURRENT_NODE >> ~/code-physics/current_node
-code tunnel --accept-server-license-terms --name code-physics > $HOME/code-physics/code-physics.log
+code tunnel --accept-server-license-terms --name "$name" --cli-data-dir "$workdir" > "$HOME/code-physics/$name.log"
+# code tunnel --accept-server-license-terms --name "code-physics" > $HOME/code-physics/code-physics.log
 echo "complete" >> ~/code-physics/current_node
 
 
