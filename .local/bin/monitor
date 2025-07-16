@@ -1,13 +1,208 @@
-#! /bin/bash
-optional_arg="bhar9988"
-export COLUMNS=200
-# Check if an optional argument is provided without a flag
-if [ $# -gt 0 ] && [[ ! "$1" =~ ^- ]]; then
-    optional_arg="$1"
-    shift # Shift past the optional argument
+#!/bin/bash
+
+# Use the actual filename for self-invocation. More robust.
+scriptname=$(basename "$0")
+
+# --- Configuration ---
+username="$USER"
+# State file to remember the currently selected job index
+STATE_FILE="$HOME/.job_monitor_index"
+touch "$STATE_FILE" # Ensure the file exists
+
+# --- Argument Handling: To SET the job ---
+
+# If the first argument is 'next' or 'prev', cycle the job index and exit.
+if [[ "$1" == "next" ]] || [[ "$1" == "prev" ]]; then
+    # Optional second argument can be the username
+    if [ -n "$2" ]; then username="$2"; fi
+
+    # Get all individual running jobs and tasks to determine the list size
+    mapfile -t job_ids < <(qstat -u "$username" -r -t| grep " R " | awk '{print $1}')
+    num_jobs=${#job_ids[@]}
+
+    if [ "$num_jobs" -eq 0 ]; then
+        echo 0 > "$STATE_FILE" # Reset index
+        echo "No running jobs for user $username."
+        exit
+    fi
+
+    current_index=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+
+    if [[ "$1" == "next" ]]; then
+        new_index=$(( (current_index + 1) % num_jobs ))
+    else # "prev"
+        new_index=$(( (current_index - 1 + num_jobs) % num_jobs ))
+    fi
+
+    echo "$new_index" > "$STATE_FILE"
+    echo "✅ Monitor focus set to job index $new_index. Run './$scriptname' to view."
+    exit
 fi
-horz="--------------------------------------------------------------------------------"
-ln=$(qstat -u bhar9988 | grep -on "$optional_arg" | awk -F: '{ if (length($NF) > max) { max = length($NF); line_number = $1 } } END { print line_number }')
-proc=$(qstat -u bhar9988 | sed -n "${ln}p" | awk '!/\[\]/ {print $1}')
-filename="/taiji1/bhar9988/jobs/${proc}.log"
-viddy --pty --interval 1 "qload && echo $horz && qstat -u bhar9988 -t -n1 -r && echo $horz && qstat -u bhar9988 -t -n1 -i && echo $horz && echo "$filename" && tail -n 20 $filename"
+
+# --- NEW: Direct Job Selection ---
+# If the first argument is a number or contains brackets, treat it as a job ID to select.
+if [[ "$1" =~ ^[0-9]+$ || "$1" == *"["* ]]; then
+    target_job_id="$1"
+    # Optional second argument can be the username
+    if [ -n "$2" ]; then username="$2"; fi
+
+    # Get all individual running jobs and tasks
+    mapfile -t job_ids < <(qstat -u "$username" -r -t| grep " R " | awk '{print $1}')
+
+    # Escape regex special characters for the search
+    escaped_target_id=$(echo "$target_job_id" | sed 's/\[/\\\[/g; s/\]/\\\]/g')
+
+    found_index=-1
+    for i in "${!job_ids[@]}"; do
+       # Use robust regex matching to see if the job ID starts with the target ID.
+       if [[ "${job_ids[$i]}" =~ ^$escaped_target_id ]]; then
+           found_index=$i
+           break
+       fi
+    done
+
+    if [ "$found_index" -ne -1 ]; then
+        echo "$found_index" > "$STATE_FILE"
+        echo "✅ Monitor focus set to job ${job_ids[$found_index]}. Run './$scriptname' to view."
+    else
+        echo "❌ Job ID starting with '$target_job_id' not found in the list of running jobs for user $username."
+    fi
+    exit
+fi
+
+
+# If not cycling or selecting, the first argument is an optional username for monitoring
+if [ $# -gt 0 ] && [[ ! "$1" =~ ^- ]]; then
+    username="$1"
+fi
+
+# --- Viddy Command: To VIEW the job ---
+# This command string is executed by viddy every second.
+# It only displays information based on the state file.
+viddy_command='
+    username="'"$username"'"
+    STATE_FILE="'"$STATE_FILE"'"
+
+    # --- Color and Style Definitions ---
+    C_BLUE="\x1b[34;1m"
+    C_PURPLE="\x1b[35;1m"
+    C_YELLOW="\x1b[33;1m"
+    C_GREEN="\x1b[32;1m"
+    C_CYAN="\x1b[36;1m"
+    C_RED="\x1b[31;1m"
+    C_RESET="\x1b[0m"
+
+    # Create a horizontal line divider
+    cols=$(tput cols 2>/dev/null || echo 80)
+    horz=$(printf -- "─ %.0s" $(seq 1 $cols))
+
+    # --- Helper function to print right-justified, colored titles ---
+    print_title() {
+        local title=$1
+        local color=$2
+        # Right-justify the title using printf width specifier
+        printf "\n${color}%${cols}s${C_RESET}\n" "$title "
+    }
+
+
+    # Get all individual running jobs and tasks
+    mapfile -t job_ids < <(qstat -u "$username" -r -t | grep " R " | awk '\''{print $1}'\'')
+    num_jobs=${#job_ids[@]}
+
+    # Handle case where there are no running jobs at all
+    if [ "$num_jobs" -eq 0 ]; then
+        print_title "SYSTEM LOAD" "$C_BLUE"
+        env COLUMNS=200 unbuffer qload 2>/dev/null || echo "qload not available"
+        echo "$horz"
+        print_title "ALL JOBS" "$C_CYAN"
+        echo "No running jobs for user $username. Waiting..."
+        qstat -u "$username" # Show queue status anyway
+        exit
+    fi
+
+    # Read the current job index from the state file
+    current_index=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+    # Reset index if it is out of bounds (e.g., jobs have finished)
+    if [ "$current_index" -ge "$num_jobs" ]; then
+        current_index=0
+        echo 0 > "$STATE_FILE"
+    fi
+
+    # Select the job ID to highlight
+    proc=${job_ids[$current_index]}
+
+    # --- Find Log File ---
+    filename="" # Ensure filename is empty before we start
+
+    # Check if the job ID is an array task (e.g., 1234[1].host)
+    if [[ "$proc" =~ \[([0-9]+)\] ]]; then
+        # Extract the task ID number from the brackets. BASH_REMATCH[1] holds the number.
+        task_id=${BASH_REMATCH[1]}
+
+        # Extract the base job number (e.g., "1234" from "1234[1].host")
+        job_num=$(echo "$proc" | sed "s/\[.*//")
+
+        # Construct the search pattern for the job array directory, e.g., "1234[]*"
+        dir_pattern="${job_num}[]*"
+
+        # Find the corresponding directory in ~/.jobs
+        log_dir=$(find "$HOME/.jobs" -maxdepth 1 -type d -name "$dir_pattern" -print -quit)
+
+        if [[ -d "$log_dir" ]]; then
+            # The log file is named after the task ID, e.g., "1.log"
+            filename="${log_dir}/${task_id}.log"
+        fi
+    fi
+
+    # --- Fallback to original logic for regular jobs or if array logic fails ---
+    if [[ -z "$filename" ]]; then
+        job_numeric=$(echo "$proc" | cut -d. -f1)
+        found_log=$(find "$HOME/.jobs" -name "${job_numeric}*.log" -print -quit)
+        if [[ -n "$found_log" ]]; then
+            filename="$found_log"
+        else
+            filename="$HOME/.jobs/${proc}.log"
+        fi
+    fi
+
+    # Command to highlight the selected job line in red
+    # Escape regex metacharacters in the proc name for sed
+    escaped_proc=$(echo "$proc" | sed -e "s/[]\/$.*^|[]/\\\\&/g")
+    # Highlight the entire line that starts with the exact job ID
+    highlight_cmd="sed \"s/^\(\s*${escaped_proc}.*$\)/${C_RED}\1${C_RESET}/g\""
+
+
+    # --- Display all monitoring information ---
+    print_title "SYSTEM LOAD" "$C_BLUE"
+    env COLUMNS=200 unbuffer qload 2>/dev/null || echo "qload not available"
+    echo "$horz"
+
+    print_title "QUEUED & HELD JOBS" "$C_YELLOW"
+    # Get non-running jobs and highlight if the selected job is in this list (unlikely but possible)
+    queued_jobs=$(env COLUMNS=200 qstat -u "$username" -n1 -i)
+    if [ -n "$queued_jobs" ]; then
+        echo "$queued_jobs" | eval $highlight_cmd
+    else
+        echo "No queued or held jobs."
+    fi
+
+    print_title "RUNNING JOBS" "$C_GREEN"
+    # Get running jobs and highlight the selected one
+    running_jobs=$(env COLUMNS=200 qstat -u "$username" -t -n1 -r)
+     if [ -n "$running_jobs" ]; then
+        echo "$running_jobs" | eval $highlight_cmd
+    else
+        echo "No running jobs."
+    fi
+    echo "$horz"
+
+    # --- Display Log Tailing Information ---
+    print_title "LOG PREVIEW" "$C_PURPLE"
+    instruction="Monitoring Job $((current_index+1))/$num_jobs ($proc) 👀"
+    echo "$instruction"
+    echo "Tailing log: $filename"
+    tail -n 20 "$filename" 2>/dev/null || echo "Log file not found or accessible."
+'
+
+# Launch viddy with the monitoring command
+viddy --interval 0.5 "$viddy_command"

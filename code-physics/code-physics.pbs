@@ -1,30 +1,24 @@
-#! /bin/tcsh
+#!/bin/bash
 #PBS -j oe
-#PBS -l mem=128GB
-#PBS -l vmem=128GB
+#PBS -l mem=64GB
+#PBS -l vmem=64GB
 #PBS -l ncpus=4
 #PBS -l walltime=12:00:00
-echo $SHELL
 
-if (! $?workdir) then
-	set workdir="$HOME/.vscode/cli/"
-endif
-if (! $?name) then
-	set name="code-physics"
-endif
-if (! $?queue) then
-	set queue="physics"
-endif
+# * Default values
+workdir="${workdir:-"$HOME/.vscode/cli/"}"
+name="${name:-"code-physics"}"
+queue="${queue:-"physics"}"
 
-echo "workdir=$workdir"
-echo "name=$name"
-echo "queue=$queue"
+echo "workdir=${workdir}"
+echo "name=${name}"
+echo "queue=${queue}"
 
-set CURRENT_NODE=`echo $HOSTNAME | cut -d '.' -f1`
-echo "VSCODE_CLI_USE_FILE_KEYCHAIN=$VSCODE_CLI_USE_FILE_KEYCHAIN" >> ~/code-physics/current_node
-echo $CURRENT_NODE >> ~/code-physics/current_node
-code tunnel --accept-server-license-terms --name "$name" --cli-data-dir "$workdir" > "$HOME/code-physics/$name.log"
-# code tunnel --accept-server-license-terms --name "code-physics" > $HOME/code-physics/code-physics.log
-echo "complete" >> ~/code-physics/current_node
+CURRENT_NODE=$(echo "$HOSTNAME" | cut -d '.' -f1)
 
+echo "VSCODE_CLI_USE_FILE_KEYCHAIN=${VSCODE_CLI_USE_FILE_KEYCHAIN}" >> "$HOME/code-physics/current_node"
+echo "$CURRENT_NODE" >> "$HOME/code-physics/current_node"
 
+code tunnel --accept-server-license-terms --name "$name" --cli-data-dir "$workdir" | tee "$HOME/code-physics/$name.log" "$HOME/.jobs/${PBS_JOBID}.log"
+
+echo "complete" >> "$HOME/code-physics/current_node"
