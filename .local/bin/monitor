@@ -35,7 +35,7 @@ if [[ "$1" == "next" ]] || [[ "$1" == "prev" ]]; then
     fi
 
     echo "$new_index" > "$STATE_FILE"
-    echo "✅ Monitor focus set to job index $new_index. Run './$scriptname' to view."
+    echo "✅ Monitor focus set to job index $new_index. Run '$scriptname' to view."
     exit
 fi
 
@@ -63,7 +63,7 @@ if [[ "$1" =~ ^[0-9]+$ || "$1" == *"["* ]]; then
 
     if [ "$found_index" -ne -1 ]; then
         echo "$found_index" > "$STATE_FILE"
-        echo "✅ Monitor focus set to job ${job_ids[$found_index]}. Run './$scriptname' to view."
+        echo "✅ Monitor focus set to job ${job_ids[$found_index]}. Run '$scriptname' to view."
     else
         echo "❌ Job ID starting with '$target_job_id' not found in the list of running jobs for user $username."
     fi
@@ -201,6 +201,7 @@ viddy_command='
     instruction="Monitoring Job $((current_index+1))/$num_jobs ($proc) 👀"
     echo "$instruction"
     echo "Tailing log: $filename"
+    echo ""
     tail -n 20 "$filename" 2>/dev/null || echo "Log file not found or accessible."
 '
 

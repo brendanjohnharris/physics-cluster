@@ -1,21 +1,4 @@
-ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
-ENV["JULIA_PKG_USE_CLI_GIT"] = true
-ENV["LD_LIBRARY_PATH"] = ""
-ENV["PATH"] = "/suphys/bhar9988/build/miniforge3/envs/bhar9988/bin:$(ENV["PATH"])"
-# ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
-# ENV["JULIA_CONDAPKG_BACKEND"] = "MicroMamba"
 using Pkg
-ENV["PYTHON"] = "/suphys/bhar9988/build/miniforge3/envs/bhar9988/bin/python"
-# ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
-ENV["FREETYPE_ABSTRACTION_FONT_PATH"] = "/suphys/bhar9988/build/miniforge3/envs/bhar9988/fonts/"
-ENV["JULIA_DEBUG"] = "SpatiotemporalMotifs" # loading,VSCodeServer
-ENV["JULIA_DISTRIBUTED"] = true
-ENV["JULIA_WORKER_TIMEOUT"] = 600
-ENV["DRWATSON_STOREPATCH"] = true
-ENV["USYDCLUSTERS_LOGDIR"] = "/suphys/bhar9988/.jobs/"
-# ENV["FORESIGHT_PATCHES"] = true
-# ENV["DEWDROP_BACKEND"] = "gpu"
-# ENV["XLA_PYTHON_CLIENT_PREALLOCATE"] = false # For multiple JAX instances
 using Revise
 using OhMyREPL
 using Downloads
