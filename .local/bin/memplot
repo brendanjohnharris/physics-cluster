@@ -1,0 +1,172 @@
+#!/bin/bash
+
+# ==============================================================================
+# Live Memory Monitor Dashboard
+#
+# Description:
+# This script provides a live, continuously updating dashboard of the top
+# memory-consuming processes. It uses tput to redraw only the necessary lines,
+# creating a smooth, flicker-free display.
+#
+# It should be run in a separate terminal while the main memory_monitor.sh
+# script is running and generating logs.
+# ==============================================================================
+
+# --- Configuration ---
+# The log file to analyze.
+LOG_FILE="$HOME/.jobs/memonitor.csv"
+# The interval in seconds between each screen refresh.
+REFRESH_INTERVAL=10
+# The number of lines to look back in the log file to determine top processes.
+# A larger number gives a more stable "top 5" but is slightly slower.
+LOOKBACK_LINES=1000
+# Number of top processes to display
+N=22
+# Define a fixed terminal width.
+FIXED_WIDTH=120
+# Time window in seconds for peak memory calculation (30 minutes = 1800 seconds).
+PEAK_WINDOW_SECONDS=1800
+
+# --- Pre-flight Checks ---
+if [ ! -f "${LOG_FILE}" ]; then
+    echo "Error: Log file '${LOG_FILE}' not found."
+    echo "Please ensure the memory_monitor.sh script is running and creating the log."
+    exit 1
+fi
+
+# Get total system memory in KB from /proc/meminfo.
+TOTAL_MEM_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+if [ -z "$TOTAL_MEM_KB" ] || [ "$TOTAL_MEM_KB" -eq 0 ]; then
+    echo "Error: Could not determine total system memory from /proc/meminfo."
+    exit 1
+fi
+# Convert total memory to GB for all calculations. Use awk for precision.
+# Prepending LC_NUMERIC=C ensures that '.' is used as the decimal separator,
+# preventing issues on systems with different locale settings (e.g., using ',').
+TOTAL_MEM_GB=$(LC_NUMERIC=C awk -v kb="$TOTAL_MEM_KB" 'BEGIN { printf "%.2f", kb / 1024 / 1024 }')
+
+
+# --- Main Loop ---
+# This function will run until the script is manually stopped (Ctrl+C).
+# We wrap it in a function to ensure the trap is set correctly.
+main() {
+    # Set a trap to restore the cursor when the script is exited.
+    trap 'rm -f "$PEAK_DATA_FILE"; tput cnorm; tput cup $(tput lines) 0; echo; exit' INT TERM
+
+    # Create a temporary file for peak usage data.
+    PEAK_DATA_FILE=$(mktemp)
+
+    # --- Initial Static Draw ---
+    clear
+    tput civis # Hide cursor
+
+    # Create the horizontal separator line based on the fixed width
+    HR_LINE=$(printf '%*s' "$FIXED_WIDTH" | tr ' ' '-')
+
+    echo "--- Live Memory Usage (Top ${N}) --- Press Ctrl+C to exit ---"
+    echo "Total System Memory: ${TOTAL_MEM_GB} GB"
+    printf "%-8s | %-15s | %-10s | %-10s | %-10s | %-6s | %-*s|\n" "PID" "Command" "User" "Memory" "Peak Mem" "% MEM" "$max_bar_width" "Usage Bar"
+    echo "${HR_LINE}"
+
+    # Reserve space for the table and footer
+    for ((i=0; i<N+3; i++)); do echo; done
+
+
+    while true; do
+        # Use the fixed width for calculations.
+        term_width=${FIXED_WIDTH}
+        # Define the maximum width for the bar chart area.
+        # We leave space for labels like "PID | Command | User | Memory | % MEM | Peak Mem | Chart |".
+        max_bar_width=$((term_width - 83))
+        # Ensure max_bar_width is not negative if terminal is too small
+        if [ "$max_bar_width" -lt 10 ]; then
+            max_bar_width=10
+        fi
+
+        # --- Data Processing ---
+        # Calculate start time for peak window.
+        start_time_peak=$(( $(date +%s) - PEAK_WINDOW_SECONDS ))
+        # Use awk to find the peak memory for each process in the last 30 mins.
+        awk -F, -v start="$start_time_peak" '$1 > start { key=$2; if ($6 > max[key]) max[key]=$6 } END { for (k in max) print k,max[k] }' "${LOG_FILE}" > "$PEAK_DATA_FILE"
+
+        # Get the most recent data from the log file.
+        recent_data=$(tail -n "${LOOKBACK_LINES}" "${LOG_FILE}")
+
+        # Find the top N unique processes by their latest memory usage.
+        # The log format is: timestamp,pid,ppid,user,mem_percent,mem_kb,command
+        top_processes=$(echo "${recent_data}" | tac | \
+            awk -F, '!seen[$2,$7]++ {print $6, $2, $7, $4}' | \
+            sort -rn | head -n $N)
+
+
+        # --- Drawing the Dashboard ---
+
+        # --- Draw Total Memory Usage Row ---
+        local line_num=4 # Start drawing dynamic content from line 4 (0-indexed)
+        tput cup $line_num 0 # Move cursor to the start of the TOTAL line
+
+        mem_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+        used_mem_kb=$((TOTAL_MEM_KB - mem_available_kb))
+
+        used_mem_gb_display=$(LC_NUMERIC=C awk -v kb="$used_mem_kb" 'BEGIN { printf "%.2f GB", kb / 1024 / 1024 }')
+        used_mem_gb_calc=$(LC_NUMERIC=C awk -v kb="$used_mem_kb" 'BEGIN { printf "%.4f", kb / 1024 / 1024 }')
+
+        used_mem_percent=$(LC_NUMERIC=C awk -v used="$used_mem_gb_calc" -v total="$TOTAL_MEM_GB" 'BEGIN { printf "%.1f%%", (used/total) * 100 }')
+
+        bar_length=$(LC_NUMERIC=C awk -v used="$used_mem_gb_calc" -v total="$TOTAL_MEM_GB" -v width="$max_bar_width" 'BEGIN { printf "%d", (used/total) * width }')
+
+        bar=""
+        for ((i=0; i<bar_length; i++)); do bar+="■"; done
+
+        # Print the formatted line with blue text for "TOTAL" and a blue bar (foreground color).
+        printf "$(tput setaf 4)%-8s$(tput sgr0) | %-15s | %-10s | $(tput setaf 4)%-10s$(tput sgr0) | %-10s | $(tput setaf 4)%-6s$(tput sgr0) | %s%s%s" "TOTAL" "" "" "${used_mem_gb_display}" "" "${used_mem_percent}" "$(tput setaf 4)" "${bar}" "$(tput sgr0)"
+        tput el # Erase to end of line
+        tput cup $line_num $((80 + max_bar_width)); printf "|"
+
+        ((line_num++))
+
+        # --- Draw Top N Processes ---
+        if [ -z "$top_processes" ]; then
+            : # Do nothing if no process data, total is already drawn
+        else
+            echo "${top_processes}" | while read -r mem_kb pid cmd user; do
+                tput cup $line_num 0 # Move cursor to the start of the line
+                mem_kb=${mem_kb%.*}
+                if [ -z "$mem_kb" ]; then continue; fi
+
+                peak_mem_kb=$(grep "^${pid} " "$PEAK_DATA_FILE" | awk '{print $2}')
+                peak_mem_gb_display="N/A"
+                if [ -n "$peak_mem_kb" ]; then
+                    peak_mem_gb_display=$(LC_NUMERIC=C awk -v kb="$peak_mem_kb" 'BEGIN { printf "%.2f GB", kb / 1024 / 1024 }')
+                fi
+
+                mem_gb_display=$(LC_NUMERIC=C awk -v kb="$mem_kb" 'BEGIN { printf "%.2f GB", kb / 1024 / 1024 }')
+                mem_gb_calc=$(LC_NUMERIC=C awk -v kb="$mem_kb" 'BEGIN { printf "%.4f", kb / 1024 / 1024 }')
+
+                mem_percent=$(LC_NUMERIC=C awk -v used="$mem_gb_calc" -v total="$TOTAL_MEM_GB" 'BEGIN { printf "%.1f%%", (used/total) * 100 }')
+
+                bar_length=$(LC_NUMERIC=C awk -v used="$mem_gb_calc" -v total="$TOTAL_MEM_GB" -v width="$max_bar_width" 'BEGIN { printf "%d", (used/total) * width }')
+
+                bar=""
+                for ((i=0; i<bar_length; i++)); do bar+="■"; done
+
+                printf "%-8s | %-15.15s | %-10s | %-10s | %-10s | %-6s | %s" "${pid}" "${cmd}" "${user}" "${mem_gb_display}" "${peak_mem_gb_display}" "${mem_percent}" "${bar}"
+                tput el # Erase to end of line
+                tput cup $line_num $((80 + max_bar_width)); printf "|"
+
+                ((line_num++))
+            done
+        fi
+
+        # --- Draw Footer ---
+        tput cup $((5 + N)) 0; printf "%s\n" "${HR_LINE}"; tput el
+        tput cup $((6 + N)) 0; echo "Last updated: $(date)"; tput el
+
+        # Wait for the specified interval before refreshing.
+        sleep "${REFRESH_INTERVAL}"
+    done
+}
+
+# Run the main function.
+main
+

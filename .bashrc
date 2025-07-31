@@ -9,7 +9,6 @@ if [ -f "$HOME/.shellfishrc" ]; then
 fi
 
 # * Environment variables
-export SM_THETA="(6, 10)"
 export LD_LIBRARY_PATH=""
 export LD_PRELOAD=""
 export JULIA_NUM_THREADS="auto"
@@ -25,7 +24,7 @@ export ALLEN_NEUROPIXELS_OFFLINE="true"
 # export PYTHONWARNINGS="ignore:JuliaCompatHooks.find_spec() not found:ImportWarning,ignore:pkg_resources is deprecated as an API:UserWarning"
 
 # * Julia configuration
-export JULIA_CPU_TARGET="generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
+export JULIA_CPU_TARGET="generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;ivybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
 export JULIA_PKG_USE_CLI_GIT=true
 export LD_LIBRARY_PATH=""
 export FREETYPE_ABSTRACTION_FONT_PATH="/suphys/bhar9988/build/miniforge3/envs/bhar9988/fonts/"

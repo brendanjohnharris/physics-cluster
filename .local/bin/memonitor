@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# ==============================================================================
+# Process Memory Monitor
+#
+# Description:
+# This script continuously monitors the memory usage of all processes on the
+# system. It records the data every second to a CSV log file. Each entry is
+# timestamped, allowing for historical analysis and graphing of memory
+# consumption over time for each process.
+#
+# Log Format:
+# timestamp,pid,ppid,user,mem_percent,mem_kb,command
+# ==============================================================================
+
+# --- Configuration ---
+# The file where the memory usage logs will be stored.
+LOG_FILE="$HOME/.jobs/memonitor.csv"
+
+# The interval in seconds between each data capture.
+SLEEP_INTERVAL=10
+
+# --- Script Body ---
+
+echo "Starting memory monitoring..."
+echo "Data will be logged to: ${LOG_FILE}"
+echo "Press Ctrl+C to stop the script."
+
+# Create the log file and add a header if it doesn't exist.
+# The header helps in parsing the CSV data later.
+if [ ! -f "${LOG_FILE}" ]; then
+    echo "timestamp,pid,ppid,user,mem_percent,mem_kb,command" > "${LOG_FILE}"
+fi
+
+# --- Main Monitoring Loop ---
+# This loop will run indefinitely until the script is manually stopped (Ctrl+C).
+while true; do
+    # Get the current time as a Unix timestamp (seconds since epoch).
+    # This provides a consistent, numeric timestamp for easy graphing.
+    current_timestamp=$(date +%s)
+
+    # Use 'ps' to get process information.
+    # -e: Select all processes.
+    # -o: Specify output format.
+    #   pid: Process ID
+    #   ppid: Parent Process ID
+    #   user: The user associated with the process.
+    #   %mem: Percentage of physical memory used.
+    #   rss: Resident Set Size (non-swapped physical memory used by the task) in kilobytes.
+    #   comm: The command name (only the executable name).
+    # --no-headers: Don't print the header line from 'ps' itself.
+    #
+    # The output of 'ps' is then piped to 'awk' for formatting.
+    # 'awk' adds the timestamp to the beginning of each line.
+    ps -eo pid,ppid,user,%mem,rss,comm --no-headers | \
+    awk -v ts="$current_timestamp" '{
+        # $1=pid, $2=ppid, $3=user, $4=%mem, $5=rss, $6=command
+        # We print the timestamp, followed by the process info, separated by commas.
+        printf "%s,%s,%s,%s,%s,%s,%s\n", ts, $1, $2, $3, $4, $5, $6
+    }' >> "${LOG_FILE}"
+
+    # Wait for the specified interval before the next capture.
+    sleep "${SLEEP_INTERVAL}"
+done
