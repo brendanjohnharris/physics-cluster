@@ -1,8 +1,8 @@
 #!/bin/bash
 #PBS -j oe
-#PBS -l mem=200GB
-#PBS -l vmem=200GB
-#PBS -l ncpus=4
+#PBS -l mem=60GB
+#PBS -l vmem=60GB
+#PBS -l ncpus=11
 #PBS -l walltime=12:00:00
 
 # * Default values
@@ -22,3 +22,4 @@ echo "$CURRENT_NODE" >> "$HOME/code-physics/current_node"
 code tunnel --accept-server-license-terms --name "$name" --cli-data-dir "$workdir" | tee "$HOME/code-physics/$name.log" "$HOME/.jobs/${PBS_JOBID}.log"
 
 echo "complete" >> "$HOME/code-physics/current_node"
+

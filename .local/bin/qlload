@@ -1,0 +1,592 @@
+#!/usr/bin/python
+# qload version 2.1 - PBS resource monitor for headnode/taiji/cmt/l40s/jasper
+# Romesh Abeysuriya 130312
+# romesha@physics.usyd.edu.au for bug reports!
+# modify by yi @03/09/2024
+# modified by brendan @21/11/2025
+
+import sys
+from signal import signal, SIGPIPE, SIG_DFL
+import math
+import os
+import re
+import socket
+import optparse
+
+
+# ANSI color codes for making output colorful
+class Colors:
+    RESET = "\033[0m"
+    UNDERLINE = "\033[4m"
+
+    USER_COLORS = [
+        "\033[31m",  # Red
+        "\033[32m",  # Green
+        "\033[33m",  # Yellow
+        "\033[34m",  # Blue
+        "\033[35m",  # Magenta
+        "\033[36m",  # Cyan
+        "\033[7;31m",  # Red inverted
+        "\033[7;32m",  # Green inverted
+        "\033[7;33m",  # Yellow inverted
+        "\033[7;34m",  # Blue inverted
+        "\033[7;35m",  # Magenta inverted
+        "\033[7;36m",  # Cyan inverted
+    ]
+
+
+# Global user color mapping - maintains consistent colors across the session
+_user_color_map = {}
+_next_color_index = 0
+
+
+def get_user_color(username):
+    """Generate a consistent color for each user based on order of appearance"""
+    global _user_color_map, _next_color_index
+
+    if not sys.stdout.isatty():
+        return ""
+
+    # If user already has a color, return it
+    if username in _user_color_map:
+        return _user_color_map[username]
+
+    # Assign next color in sequence
+    color = Colors.USER_COLORS[_next_color_index % len(Colors.USER_COLORS)]
+    _user_color_map[username] = color
+    _next_color_index += 1
+
+    return color
+
+
+termwidth = 80
+# Maximum lengths for some of the text fields - minimum 80 characters
+max_queuename = 5
+max_ncpu = 6
+max_time = 14
+max_status = 7
+free3 = termwidth - max_queuename - max_ncpu - max_time - max_status - 9  # 9 spaces
+max_jobid = int(math.floor(free3 * 0.3))  # (11/80)
+max_uname = int(math.floor(free3 * 0.3))  # (8/80)
+max_jobname = free3 - max_jobid - max_uname
+
+signal(SIGPIPE, SIG_DFL)
+
+print_length_regex = re.compile(r"\x1b\[[;\d]*[A-Za-z]")
+
+
+def print_length(s):
+    # Return the length of a string in characters ignoring colour escape codes
+    return len(print_length_regex.sub("", s))
+
+
+def n_escaped(s):
+    return len(s) - print_length(s)
+
+
+def sec2str(sec_remaining):
+    if sec_remaining < 0:
+        return "Unknown time"
+    else:
+        return "%3dh %02dm %02ds" % (
+            sec_remaining / 3600,
+            sec_remaining % 3600 / 60,
+            sec_remaining % 3600 % 60,
+        )
+
+
+def limit(string, maxchar):
+    if len(string) > maxchar:
+        return string[0 : maxchar - 3] + "..."
+    else:
+        return string.ljust(maxchar)[:maxchar]
+
+
+def parse_mem(mem_str):
+    """
+    Convert memory string (e.g., '1024kb', '2gb') to KB
+    """
+    mem_str = mem_str.strip().lower()
+    if mem_str.endswith("kb"):
+        return float(mem_str[:-2])
+    elif mem_str.endswith("mb"):
+        return float(mem_str[:-2]) * 1024
+    elif mem_str.endswith("gb"):
+        return float(mem_str[:-2]) * 1024 * 1024
+    elif mem_str.endswith("b"):
+        return float(mem_str[:-1]) / 1024
+    else:
+        # assume default is KB if no unit
+        return float(mem_str)
+
+
+class Job:  # Class to store Job objects (each object corresponds to a job in qstat)
+    states = {
+        "B": "Array",
+        "E": "Done",
+        "H": "On hold",
+        "Q": "Pending",
+        "R": "Running",
+        "T": "Moving",
+        "W": "Waiting",
+        "S": "Suspend",
+        "X": "Done",
+    }
+
+    def __init__(self, jdata):
+        self.store = {}
+
+        self.store["Job ID"] = jdata[0].split(":")[1].strip()
+        for entry in jdata[1:]:
+            if "=" in entry:
+                a, b = entry.split("=", 1)
+                self.store[a.strip()] = b.strip()
+
+        self.nodes = int(self.store["Resource_List.select"].split(":")[0])
+        self.cpus = int(self.store["Resource_List.ncpus"])
+        self.user = self.store["Job_Owner"].split("@")[0]
+        self.job_number = self.store["Job ID"].split(".")[0]
+        self.state = self.states[self.store["job_state"]]
+        self.queue = self.store["queue"]
+        if self.queue == "hippocrates":
+            self.queue = "hippo"  # Shorten the hippocrates name
+
+        if (
+            self.state == "Running"
+            and "Resource_List.walltime" in self.store
+            and "resources_used.walltime" in self.store
+        ):
+            req = [int(x) for x in self.store["Resource_List.walltime"].split(":")]
+            used = [int(x) for x in self.store["resources_used.walltime"].split(":")]
+            self.sec_remaining = (
+                req[0] * 3600
+                + req[1] * 60
+                + req[2]
+                - used[0] * 3600
+                - used[1] * 60
+                - used[2]
+            )
+            self.timestr = sec2str(self.sec_remaining)
+        elif self.state == "Done":  # If we know the job is done
+            if "resources_used.walltime" in self.store:
+                used = [
+                    int(x) for x in self.store["resources_used.walltime"].split(":")
+                ]
+                self.timestr = "Took %dh %02dm" % (used[0], used[1])
+            else:
+                self.timestr = "N/A"
+        elif (
+            "Resource_List.walltime" in self.store
+        ):  # A requested walltime was specified (job is probably pending or just started)
+            walltime = self.store["Resource_List.walltime"]
+            [h_remaining, m_remaining, s_remaining] = [
+                int(x) for x in walltime.split(":")
+            ]
+            self.sec_remaining = h_remaining * 3600 + m_remaining * 60 + s_remaining
+            self.timestr = sec2str(self.sec_remaining)
+        else:  # Account for an unexpected condition
+            self.sec_remaining = -1
+            self.timestr = "Unspecified"
+
+    def display(self):
+        sys.stdout.write(
+            "%s %s %s %s  %2d/%2d  %s  %s\n"
+            % (
+                limit(self.job_number, max_jobid),
+                limit(self.store["Job_Name"], max_jobname),
+                limit(self.user, max_uname),
+                limit(self.queue, max_ncpu),
+                self.nodes,
+                self.cpus,
+                self.timestr.rjust(max_time),
+                limit(self.state, max_status),
+            )
+        )
+
+
+class queue:  # Class to hold queues. Each queue contains a list of jobs that are running on that queue
+    # Define the maximum length for the job name and user name when printing
+    # Internal variables
+    # - joblist (list of job objects)
+    # - userdict (dictionary of users and their CPU usage)
+
+    def __init__(self, hoststring):  # Populate the queue with jobs
+        self.joblist = []
+        self.hoststring = hoststring
+
+        output = os.popen("/opt/qload-monitor/bin/qstat -ft %s@headnode" % (hoststring))
+        jobdata = []
+        line = output.readline()
+        while line:
+            jobdata.append(line)
+            if line == "\n":
+                if jobdata[0].strip().startswith("Job Id"):
+                    self.joblist.append(Job(jobdata))
+                jobdata = []
+            line = output.readline()
+
+        self.userdict = {}
+        for j in self.joblist:
+            if j.state == "Running":
+                if j.user in self.userdict:
+                    self.userdict[j.user][0] += j.cpus
+                else:
+                    self.userdict[j.user] = [j.cpus, 0]
+            elif j.state == "Pending":
+                if j.user in self.userdict:
+                    self.userdict[j.user][1] += j.cpus
+                else:
+                    self.userdict[j.user] = [0, j.cpus]
+
+    def get_user_dict(self):
+        # Return a dictionary that matches job IDs to users
+        out = {}
+        for j in self.joblist:
+            out[j.job_number] = j.user
+        return out
+
+    def find_job_by_id(self, jobid):
+        for j in self.joblist:
+            if j.job_number == jobid:
+                return j
+
+    def __repr__(self):
+        return "Queue object: %s" % (self.hoststring)
+
+    def display_jobs(self, header, username):
+        no_user_jobs = True
+        for j in self.joblist:
+            if j.user == username:
+                no_user_jobs = False
+                break
+
+        if username != "all" and no_user_jobs:
+            sys.stdout.write("User %s doesn't have any jobs\n" % (username))
+        elif not len(self.joblist):
+            sys.stdout.write("No jobs in the queue!\n")
+        elif header:
+            sys.stdout.write(
+                "%s %s %s Queue   N/CPU  Time remaining  Status\n"
+                % (
+                    limit("Job ID", max_jobid),
+                    limit("Job name", max_jobname),
+                    limit("Owner", max_uname),
+                )
+            )
+        for j in self.joblist:
+            if username == "all" or j.user == username:
+                j.display()
+
+    def get_user_timestrs(self, user):
+        times = []
+        for j in self.joblist:
+            if j.state == "Running" and j.user == user:
+                times.append(j.sec_remaining)
+        if not len(times):
+            return "---"
+        return "%s remaining" % (sec2str(max(times)))
+
+    def display_users(self, header, this_user=""):
+        if header:
+            sys.stdout.write("\nUser load:\n")
+
+        if len(self.userdict):
+            items = [(v, k) for k, v in list(self.userdict.items())]
+            items = sorted(items, key=lambda x: x[0][0])
+            items.reverse()  # so largest is first
+            items = [(k, v) for v, k in items]
+            count = 1
+            for u in items:
+                username = ""
+                timestr = self.get_user_timestrs(u[0])
+                finger = os.popen("finger %s 2> /dev/null" % (u[0]))
+                line = finger.readline()
+                if "Name" in line:
+                    username = line.split(":")[-1].strip()
+
+                user_color = get_user_color(u[0])
+
+                output = "%s- %s" % (count, u[0])
+                if username:
+                    output = output + "/%s" % (username)
+
+                if u[1][0] == 1:
+                    output = output + " (%i core" % (u[1][0])
+                else:
+                    output = output + " (%i cores" % (u[1][0])
+
+                if u[1][1] > 0:
+                    output = output + ", %i pending)" % (u[1][1])
+                else:
+                    output = output + ")"
+
+                if sys.stdout.isatty():
+                    if u[0] == this_user:
+                        output = user_color + Colors.UNDERLINE + output + Colors.RESET
+                    else:
+                        output = user_color + output + Colors.RESET
+                else:
+                    if u[0] == this_user:
+                        output = output.upper()
+
+                sys.stdout.write("%s %s\n" % (output, timestr.rjust(23)))
+                count += 1
+        else:
+            sys.stdout.write("No users!\n")
+
+
+class node:  # Store the information for each node
+    # properties
+    # hostname
+    # number of processors
+    # active jobs
+    # load (number of requested cpus)
+    # loadavg (actual usage)
+    def __init__(self, pbsnodes_output, username):
+        self.nodedata = {}
+        for entry in pbsnodes_output:
+            if "=" in entry:
+                # WARNING: This fails when qstat is annoying and randomly splits its output
+                # In this case, qload just ignores the data coming from qstat
+                a, b = entry.split("=", 1)
+                self.nodedata[a.strip()] = b.strip()
+                # Assign common variables
+
+        self.hostname = pbsnodes_output[0].strip()
+        self.node_number = int(self.hostname[-5:-3])
+        self.state = self.nodedata["state"]
+        if "resources_available.Qlist" in self.nodedata:
+            self.cluster = self.nodedata["resources_available.Qlist"].split(",")
+        else:
+            self.cluster = self.nodedata["queue"]
+        self.this_user = username
+        self.hasjobs = "jobs" in self.nodedata
+        if "resources_available.mem" in self.nodedata:
+            self.availmem = self.nodedata["resources_available.mem"]
+        else:
+            self.availmem = 0
+        self.usedmem = self.nodedata["resources_assigned.mem"]
+        self.loadavg = int(self.nodedata["resources_assigned.ncpus"])
+        if "resources_available.ncpus" in self.nodedata:
+            self.nproc = int(self.nodedata["resources_available.ncpus"])
+        else:
+            self.nproc = 0
+
+        if "resources_available.ngpus" in self.nodedata:
+            self.ngpus = int(self.nodedata["resources_available.ngpus"])
+        else:
+            self.ngpus = 0
+
+        if "resources_assigned.ngpus" in self.nodedata:
+            self.usedgpus = int(self.nodedata["resources_assigned.ngpus"])
+        else:
+            self.usedgpus = 0
+
+        if "down" in self.state or "offline" in self.state:
+            self.loadavg = 0
+            self.avail = 0
+            self.availmem = 0
+            self.usedmem = 0
+            self.ngpus = 0
+            self.usedgpus = 0
+        else:
+            if self.hasjobs:
+                self.jobs = [
+                    x.strip().split("/")[0].split(".")[0]
+                    for x in self.nodedata["jobs"].split(",")
+                    if "headnode" in x
+                ]
+                self.load = len(self.jobs)
+            else:
+                self.load = 0
+                self.jobs = []
+
+            self.avail = self.nproc - self.load
+
+            try:
+                avail_kb = parse_mem(self.availmem)
+                used_kb = parse_mem(self.usedmem)
+                remaining_kb = avail_kb - used_kb
+                remaining_physical = remaining_kb / 1048576
+                if remaining_physical > 0:
+                    self.freemem = "%4.1fGB" % (remaining_physical)
+                else:
+                    self.freemem = "NO MEM"
+            except:
+                self.freemem = "   Err"
+
+    def get_indicator(self, queue, state):
+        if queue:
+            jobdict = queue.get_user_dict()
+        else:
+            jobdict = {}
+
+        if ("free" in self.state or "job-busy" in self.state) and not (
+            "offline" in self.state
+        ):
+            # Build list of colored job markers
+            job_markers = []
+            for j in self.jobs:
+                marker = "•"
+
+                # Color each job marker by its user
+                if j in jobdict.keys() and sys.stdout.isatty():
+                    user = jobdict[j]
+                    user_color = get_user_color(user)
+                    # Underline if it's the current user's job
+                    if user == self.this_user:
+                        job_markers.append(
+                            user_color + Colors.UNDERLINE + marker + Colors.RESET
+                        )
+                    else:
+                        job_markers.append(user_color + marker + Colors.RESET)
+                else:
+                    job_markers.append(marker)
+
+            # Determine if we need two-row graph (more than 64 cores)
+            if self.nproc > 64:
+                # Two-row graph using Braille characters
+                # Each column position represents 2 cores (top and bottom dot)
+                display_width = (self.nproc + 1) // 2
+                graph_chars = []
+
+                for i in range(display_width):
+                    cores_in_col = 2 if (i * 2 + 1) < self.nproc else 1
+                    filled_in_col = min(cores_in_col, max(0, self.load - i * 2))
+
+                    # Determine which character to use
+                    if filled_in_col == 2:
+                        # Both top and bottom filled: two dots vertically aligned
+                        char = "⠆"
+                    elif filled_in_col == 1:
+                        # Only bottom filled: lower dot
+                        char = "⠄"
+                    else:
+                        # Empty
+                        char = "="
+
+                    # Apply coloring if jobs exist in this position
+                    if i * 2 < len(job_markers) and filled_in_col > 0:
+                        # Extract the color codes from the job marker
+                        marker = job_markers[i * 2]
+                        if sys.stdout.isatty() and marker.startswith("\033"):
+                            colored_char = marker.replace("•", char)
+                            graph_chars.append(colored_char)
+                        else:
+                            graph_chars.append(char)
+                    else:
+                        graph_chars.append(char)
+
+                graph = "|" + "".join(graph_chars) + "|"
+            else:
+                # Single-row graph for 64 or fewer cores
+                graph = "|"
+                graph += "".join(job_markers)
+                graph += "-" * (self.nproc - self.load) + "|"
+
+            indicator = "     (%-2d)" % (self.nproc - self.load)
+            loadavg = "%4.1f" % (self.loadavg)
+
+            indicator += " %8.8s   %8.8s" % (loadavg, self.freemem)
+            indicator += " %8.8s" % (self.ngpus - self.usedgpus)
+            indicator += "      " + graph
+            return indicator
+        else:
+            graph = "|-" * ((self.nproc - len(self.state) - 1) // 2) + "|"
+            indicator = "down/offline"
+            loadavg = "    "
+            return indicator  # pass
+
+    def getstr(self, queue):
+        indicator = self.get_indicator(queue, self.state)
+        return "%-12s %-12s" % (self.hostname, indicator)
+
+
+class pbsnodes:  # This class holds a list of all of the nodes
+    # Node properties
+    def __init__(self, hostname, username):
+        self.hostname = hostname
+        self.nodelist = []
+
+        output = os.popen("/opt/qload-monitor/bin/pbsnodes -av -s %s" % (hostname))
+        nodedata = []
+        line = output.readline()
+        while line:
+            nodedata.append(line)
+            if line == "\n":
+                if nodedata and "[" in nodedata[0]:
+                    self.nodelist.append(node(nodedata, username))
+                nodedata = []
+            line = output.readline()
+
+    def load(self, cluster):
+        cpus = 0
+        load = 0
+        for n in self.nodelist:
+            if (
+                cluster in n.cluster
+                and ("free" in n.state or "job-busy" in n.state)
+                and not ("offline" in n.state)
+            ):
+                cpus += n.nproc
+                load += n.load
+        return (cpus - load, cpus)
+
+    def display(self, queue=None):
+        print("\nNode         (cpu free) load-avg free-mem      gpu Graph\n")
+        output = [x.getstr(queue) for x in self.nodelist]
+        for line in output:
+            if print_length(line) > 0:
+                print(line)
+
+
+# ------------------------------------------ MAIN
+
+if socket.gethostname().startswith("node"):
+    sys.stdout.write("This script cannot be run from a compute node on the cluster\n")
+    sys.exit()
+
+parser = optparse.OptionParser()
+parser.add_option(
+    "-q",
+    "--queue",
+    dest="queuename",
+    help="Display jobs only from one of the queues (batch/hippocrates)",
+    metavar="QUEUE",
+    default="",
+)
+parser.add_option(
+    "-u",
+    "--username",
+    dest="user_highlight",
+    help="Display and highlight jobs from a different user",
+    metavar="USER",
+    default="default",
+)
+parser.add_option(
+    "-a",
+    "--all",
+    action="store_true",
+    dest="show_all",
+    default=False,
+    help="Show jobs from any user",
+)
+(options, args) = parser.parse_args()
+
+if options.show_all:
+    username = "all"  # Show all users
+    user_highlight = os.getenv("USER")
+elif options.user_highlight != "default":
+    username = options.user_highlight  # Display jobs from specified user
+    user_highlight = username
+else:
+    username = os.getenv("USER")  # Display this user
+    user_highlight = username
+
+
+queue_obj = queue(options.queuename)
+queue_obj.display_users(True, username)
+
+nodes = pbsnodes("headnode", user_highlight)
+nodes.display(queue_obj)
+print("\n")

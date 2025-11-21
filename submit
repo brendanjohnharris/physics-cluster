@@ -1,6 +1,8 @@
 #!/bin/bash
-#PBS -l select=1:ncpus=32:mem=200GB:vmem=200GB
-#PBS -l walltime=96:00:00
+#PBS -l ncpus=12
+#PBS -l mem=24GB
+#PBS -l vmem=24GB
+#PBS -l walltime=32:00:00
 #PBS -o $HOME/.jobs/PBS_julia.o
 #PBS -V
 #PBS -j oe
@@ -10,7 +12,13 @@
 # JULIA_DISTRIBUTED=true
 #file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/calculations/cluster/lower_theta_calculations.jl"
 # file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/plots/csd_layer_test.jl"
-file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/calculations/collect_calculations.jl"
+# file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/calculations/collect_calculations.jl"
+# file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/plots/fig6.jl"
+#file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/plots/fig2.jl"
+# file="$WORKDIR/code/DDC/Dewdrop.jl/scripts/plots/sweeps/plot_spatial_sampling.jl"
+#file="$WORKDIR/code/DDC/Dewdrop.jl/scripts/plots/sweeps/spatial_sampling.jl"
+# file="$WORKDIR/code/DDC/FNSlab.jl/scripts/bFOLE_sweep.jl"
+file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/calculations/cluster/madev.jl"
 
 chmod u+x $file
 $file 2>&1 | tee /suphys/bhar9988/.jobs/${PBS_JOBID}.log

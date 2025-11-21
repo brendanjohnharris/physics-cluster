@@ -1,40 +1,150 @@
 #!/bin/bash
 
 # ==============================================================================
-# Process Memory Monitor
+# Process Memory Monitor with Log Rotation
 #
 # Description:
 # This script continuously monitors the memory usage of all processes on the
-# system. It records the data every second to a CSV log file. Each entry is
-# timestamped, allowing for historical analysis and graphing of memory
-# consumption over time for each process.
+# system. It records the data to a CSV log file, including total system memory
+# for context. Each entry is timestamped, allowing for historical analysis
+# and graphing of memory consumption over time.
+#
+# The script now includes automatic log rotation when the file size exceeds
+# a specified threshold, iteratively truncating from the beginning until
+# the file is under the size limit.
+#
+# The log file is named with the hostname for easy identification across
+# multiple machines. Both RSS (physical memory) and VSZ (virtual memory)
+# are recorded for each process.
 #
 # Log Format:
-# timestamp,pid,ppid,user,mem_percent,mem_kb,command
+# timestamp,total_mem_kb,pid,ppid,user,mem_percent,mem_kb,vmem_kb,command
 # ==============================================================================
 
 # --- Configuration ---
-# The file where the memory usage logs will be stored.
-LOG_FILE="$HOME/.jobs/memonitor.csv"
+# Get the hostname of the current machine for the log filename
+HOSTNAME=$(hostname)
+
+# The file where the memory usage logs will be stored (includes hostname)
+LOG_FILE="$HOME/.jobs/memonitor_${HOSTNAME}.csv"
 
 # The interval in seconds between each data capture.
 SLEEP_INTERVAL=10
 
+# Maximum log file size in bytes (default: 1000MB)
+# You can change this value to your preferred size limit
+MAX_LOG_SIZE=$((1000 * 1024 * 1024))  # 1000MB in bytes
+
+# --- Functions ---
+
+# Function to iteratively truncate log file from the beginning when it gets too large
+truncate_log_file() {
+    local log_file="$1"
+    local max_size="$2"
+
+    # Check if file exists and get its size
+    if [ -f "$log_file" ]; then
+        local file_size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null)
+
+        if [ "$file_size" -gt "$max_size" ]; then
+            echo "Log file size ($(($file_size / 1024 / 1024))MB) exceeds limit ($(($max_size / 1024 / 1024))MB). Starting iterative truncation..."
+
+            # Create a temporary file
+            local temp_file="${log_file}.tmp"
+
+            # Get the header line
+            local header=$(head -n 1 "$log_file")
+
+            # Iteratively remove the first half until file is under limit
+            local current_file="$log_file"
+            local iteration=1
+
+            while [ "$file_size" -gt "$max_size" ]; do
+                echo "Iteration $iteration: Current size $(($file_size / 1024 / 1024))MB"
+
+                # Get total number of lines (excluding header)
+                local total_lines=$(wc -l < "$current_file")
+                local data_lines=$((total_lines - 1))
+
+                # If we're down to very few lines, keep a minimum number
+                if [ "$data_lines" -le 100 ]; then
+                    echo "Reached minimum line count ($data_lines data lines). Stopping truncation."
+                    break
+                fi
+
+                # Calculate lines to keep (second half)
+                local lines_to_keep=$((data_lines / 2))
+                local lines_to_skip=$((total_lines - lines_to_keep))
+
+                # Create new file with header and second half of data
+                echo "$header" > "$temp_file"
+                tail -n "+$((lines_to_skip + 1))" "$current_file" | grep -v "^timestamp," >> "$temp_file"
+
+                # Update current file for next iteration
+                mv "$temp_file" "${log_file}.iter${iteration}"
+                current_file="${log_file}.iter${iteration}"
+
+                # Check new file size
+                file_size=$(stat -f%z "$current_file" 2>/dev/null || stat -c%s "$current_file" 2>/dev/null)
+
+                echo "After removing first half: $(($file_size / 1024 / 1024))MB ($lines_to_keep data lines remaining)"
+
+                iteration=$((iteration + 1))
+
+                # Safety check to prevent infinite loop
+                if [ "$iteration" -gt 20 ]; then
+                    echo "Warning: Too many iterations. Stopping truncation."
+                    break
+                fi
+            done
+
+            # Replace the original file with the final truncated version
+            if [ "$current_file" != "$log_file" ]; then
+                mv "$current_file" "$log_file"
+                echo "Log file truncated after $((iteration - 1)) iterations. Final size: $(($file_size / 1024 / 1024))MB"
+
+                # Clean up any temporary iteration files
+                rm -f "${log_file}".iter*
+            fi
+        fi
+    fi
+}
+
 # --- Script Body ---
 
-echo "Starting memory monitoring..."
+echo "Starting memory monitoring on host: ${HOSTNAME}"
 echo "Data will be logged to: ${LOG_FILE}"
+echo "Maximum log file size: $((MAX_LOG_SIZE / 1024 / 1024))MB"
 echo "Press Ctrl+C to stop the script."
+
+# --- Get Static Host Information ---
+# Get the total physical memory from /proc/meminfo and extract the value in KB.
+# /proc/meminfo is a standard virtual file in Linux providing memory stats.
+# See: https://www.man7.org/linux/man-pages/man5/proc.5.html
+total_memory_kb=$(grep 'MemTotal' /proc/meminfo | awk '{print $2}')
+
+# Create the log directory if it doesn't exist
+mkdir -p "$(dirname "$LOG_FILE")"
 
 # Create the log file and add a header if it doesn't exist.
 # The header helps in parsing the CSV data later.
 if [ ! -f "${LOG_FILE}" ]; then
-    echo "timestamp,pid,ppid,user,mem_percent,mem_kb,command" > "${LOG_FILE}"
+    echo "timestamp,total_mem_kb,pid,ppid,user,mem_percent,mem_kb,vmem_kb,command" > "${LOG_FILE}"
 fi
+
+# Counter to check file size periodically (every 10 iterations by default)
+size_check_counter=0
+SIZE_CHECK_INTERVAL=10
 
 # --- Main Monitoring Loop ---
 # This loop will run indefinitely until the script is manually stopped (Ctrl+C).
 while true; do
+    # Check log file size periodically
+    if [ $((size_check_counter % SIZE_CHECK_INTERVAL)) -eq 0 ]; then
+        truncate_log_file "$LOG_FILE" "$MAX_LOG_SIZE"
+    fi
+    size_check_counter=$((size_check_counter + 1))
+
     # Get the current time as a Unix timestamp (seconds since epoch).
     # This provides a consistent, numeric timestamp for easy graphing.
     current_timestamp=$(date +%s)
@@ -47,16 +157,17 @@ while true; do
     #   user: The user associated with the process.
     #   %mem: Percentage of physical memory used.
     #   rss: Resident Set Size (non-swapped physical memory used by the task) in kilobytes.
+    #   vsz: Virtual Set Size (virtual memory used by the task) in kilobytes.
     #   comm: The command name (only the executable name).
     # --no-headers: Don't print the header line from 'ps' itself.
     #
-    # The output of 'ps' is then piped to 'awk' for formatting.
-    # 'awk' adds the timestamp to the beginning of each line.
-    ps -eo pid,ppid,user,%mem,rss,comm --no-headers | \
-    awk -v ts="$current_timestamp" '{
-        # $1=pid, $2=ppid, $3=user, $4=%mem, $5=rss, $6=command
-        # We print the timestamp, followed by the process info, separated by commas.
-        printf "%s,%s,%s,%s,%s,%s,%s\n", ts, $1, $2, $3, $4, $5, $6
+    # The output of 'ps' is then piped to 'awk' for formatting. We pass the
+    # timestamp and total memory as variables to awk.
+    ps -eo pid,ppid,user,%mem,rss,vsz,comm --no-headers | \
+    awk -v ts="$current_timestamp" -v total_mem="$total_memory_kb" '{
+        # $1=pid, $2=ppid, $3=user, $4=%mem, $5=rss, $6=vsz, $7=command
+        # We print the timestamp, total memory, and then the process info, separated by commas.
+        printf "%s,%s,%s,%s,%s,%s,%s,%s,%s\n", ts, total_mem, $1, $2, $3, $4, $5, $6, $7
     }' >> "${LOG_FILE}"
 
     # Wait for the specified interval before the next capture.

@@ -11,17 +11,12 @@ fi
 # * Environment variables
 export LD_LIBRARY_PATH=""
 export LD_PRELOAD=""
-export JULIA_NUM_THREADS="auto"
 export VSCODE_CLI_USE_FILE_KEYCHAIN=1
 export WORKDIR="/import/taiji1/bhar9988"
 export TERM="xterm-256color"
 export PATH="$HOME/.local/bin/:$PATH"
 export PATH="/usr/physics/pbspro/bin:$PATH"
 export PAGER="vim -R +AnsiEsc"
-export JULIA_CONDAPKG_OFFLINE="yes"
-export ALLEN_NEUROPIXELS_OFFLINE="true"
-# export PYTHONWARNINGS="ignore::ImportWarning,ignore::UserWarning,ignore::DeprecationWarning"
-# export PYTHONWARNINGS="ignore:JuliaCompatHooks.find_spec() not found:ImportWarning,ignore:pkg_resources is deprecated as an API:UserWarning"
 
 # * Julia configuration
 export JULIA_CPU_TARGET="generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;ivybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
@@ -34,8 +29,12 @@ export JULIA_DEBUG="SpatiotemporalMotifs" # loading,VSCodeServer
 export JULIA_WORKER_TIMEOUT=600
 export USYDCLUSTERS_LOGDIR="/suphys/bhar9988/.jobs/"
 export DRWATSON_STOREPATCH=true
-# export JULIA_CONDAPKG_OFFLINE="yes"
-# export JULIA_CONDAPKG_BACKEND="MicroMamba"
+export JULIA_NUM_THREADS="auto"
+export JULIA_CONDAPKG_OFFLINE="yes"
+export ALLEN_NEUROPIXELS_OFFLINE="true"
+export JULIA_HISTORY="$HOME/.julia/logs/repl_history.jl"
+# export PYTHONWARNINGS="ignore::ImportWarning,ignore::UserWarning,ignore::DeprecationWarning"
+# export PYTHONWARNINGS="ignore:JuliaCompatHooks.find_spec() not found:ImportWarning,ignore:pkg_resources is deprecated as an API:UserWarning"
 # export JULIA_PYTHONCALL_EXE="@PyCall"
 # export FORESIGHT_PATCHES= true
 # export DEWDROP_BACKEND= "gpu"
@@ -62,7 +61,7 @@ umask 022
 
 # * Aliases
 alias qdell='qselect -u $USER | xargs qdel'
-alias qlload='set ncols=`tput cols`; env COLUMNS=200 qload | fold -c"$ncols"'
+# alias qlload='set ncols=`tput cols`; env COLUMNS=200 qload | fold -c"$ncols"'
 alias code-physics='$HOME/code-physics/start-code-physics'
 alias code-physics-2='$HOME/code-physics/start-code-physics --workdir $HOME/code-physics/cli2/ --name code-physics-2'
 config() {
@@ -106,3 +105,7 @@ esac
 
 # <<< juliaup initialize <<<
 
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
