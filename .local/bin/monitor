@@ -112,7 +112,7 @@ viddy_command='
     # Handle case where there are no running jobs at all
     if [ "$num_jobs" -eq 0 ]; then
         print_title "SYSTEM LOAD" "$C_BLUE"
-        env COLUMNS=200 unbuffer qload 2>/dev/null || echo "qload not available"
+        env COLUMNS=200 unbuffer qlload 2>/dev/null || echo "qlload not available"
         echo "$horz"
         print_title "ALL JOBS" "$C_CYAN"
         echo "No running jobs for user $username. Waiting..."
@@ -174,7 +174,7 @@ viddy_command='
 
     # --- Display all monitoring information ---
     print_title "SYSTEM LOAD" "$C_BLUE"
-    env COLUMNS=200 unbuffer qload 2>/dev/null || echo "qload not available"
+    env COLUMNS=200 unbuffer qlload 2>/dev/null || echo "qlload not available"
     echo "$horz"
 
     print_title "QUEUED & HELD JOBS" "$C_YELLOW"

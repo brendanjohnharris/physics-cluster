@@ -17,7 +17,7 @@ import optparse
 # ANSI color codes for making output colorful
 class Colors:
     RESET = "\033[0m"
-    UNDERLINE = "\033[4m"
+    UNDERLINE = "\033[7m"
 
     USER_COLORS = [
         "\033[31m",  # Red
@@ -26,12 +26,12 @@ class Colors:
         "\033[34m",  # Blue
         "\033[35m",  # Magenta
         "\033[36m",  # Cyan
-        "\033[7;31m",  # Red inverted
-        "\033[7;32m",  # Green inverted
-        "\033[7;33m",  # Yellow inverted
-        "\033[7;34m",  # Blue inverted
-        "\033[7;35m",  # Magenta inverted
-        "\033[7;36m",  # Cyan inverted
+        "\033[4;31m",  # Red inverted
+        "\033[4;32m",  # Green inverted
+        "\033[4;33m",  # Yellow inverted
+        "\033[4;34m",  # Blue inverted
+        "\033[4;35m",  # Magenta inverted
+        "\033[4;36m",  # Cyan inverted
     ]
 
 
@@ -150,6 +150,19 @@ class Job:  # Class to store Job objects (each object corresponds to a job in qs
         self.queue = self.store["queue"]
         if self.queue == "hippocrates":
             self.queue = "hippo"  # Shorten the hippocrates name
+
+        # Calculate wait time for pending jobs
+        import time
+
+        self.wait_time = 0
+        if self.state == "Pending" and "qtime" in self.store:
+            try:
+                # qtime format is typically a Unix timestamp
+                qtime = int(self.store["qtime"])
+                current_time = int(time.time())
+                self.wait_time = current_time - qtime
+            except:
+                self.wait_time = 0
 
         if (
             self.state == "Running"
@@ -409,7 +422,7 @@ class node:  # Store the information for each node
                 remaining_kb = avail_kb - used_kb
                 remaining_physical = remaining_kb / 1048576
                 if remaining_physical > 0:
-                    self.freemem = "%4.1fGB" % (remaining_physical)
+                    self.freemem = "%4dGB" % (remaining_physical)
                 else:
                     self.freemem = "NO MEM"
             except:
@@ -484,11 +497,44 @@ class node:  # Store the information for each node
                 graph += "".join(job_markers)
                 graph += "-" * (self.nproc - self.load) + "|"
 
-            indicator = "     (%-2d)" % (self.nproc - self.load)
-            loadavg = "%4.1f" % (self.loadavg)
+            # Calculate utilization percentage for color coding
+            cpu_utilization = (self.load / self.nproc * 100) if self.nproc > 0 else 0
+
+            # Color code CPU based on utilization
+            cpu_text = "  (%2d/%-2d)" % (self.nproc - self.load, self.nproc)
+            if sys.stdout.isatty():
+                if cpu_utilization >= 80:
+                    cpu_text = "\033[31m" + cpu_text + "\033[0m"  # Red for high usage
+                elif cpu_utilization >= 50:
+                    cpu_text = (
+                        "\033[33m" + cpu_text + "\033[0m"
+                    )  # Yellow for medium usage
+                else:
+                    cpu_text = "\033[32m" + cpu_text + "\033[0m"  # Green for low usage
+
+            indicator = cpu_text
+            loadavg = "%4d" % (self.loadavg)
 
             indicator += " %8.8s   %8.8s" % (loadavg, self.freemem)
-            indicator += " %8.8s" % (self.ngpus - self.usedgpus)
+
+            # Color code GPU based on availability
+            gpu_text = "%8.8s" % (self.ngpus - self.usedgpus)
+            if sys.stdout.isatty() and self.ngpus > 0:
+                gpu_free_pct = (self.ngpus - self.usedgpus) / self.ngpus * 100
+                if gpu_free_pct >= 50:
+                    gpu_text = (
+                        "\033[32m" + gpu_text + "\033[0m"
+                    )  # Green for good availability
+                elif gpu_free_pct > 0:
+                    gpu_text = (
+                        "\033[33m" + gpu_text + "\033[0m"
+                    )  # Yellow for limited availability
+                else:
+                    gpu_text = (
+                        "\033[31m" + gpu_text + "\033[0m"
+                    )  # Red for no availability
+
+            indicator += " " + gpu_text
             indicator += "      " + graph
             return indicator
         else:
@@ -532,8 +578,36 @@ class pbsnodes:  # This class holds a list of all of the nodes
                 load += n.load
         return (cpus - load, cpus)
 
+    def get_cluster_stats(self):
+        """Calculate cluster-wide statistics"""
+        total_cores = 0
+        used_cores = 0
+        total_gpus = 0
+        used_gpus = 0
+
+        for n in self.nodelist:
+            if ("free" in n.state or "job-busy" in n.state) and not (
+                "offline" in n.state
+            ):
+                total_cores += n.nproc
+                used_cores += n.load
+                total_gpus += n.ngpus
+                used_gpus += n.usedgpus
+
+        free_cores = total_cores - used_cores
+        utilization_pct = (used_cores / total_cores * 100) if total_cores > 0 else 0
+
+        return {
+            "total_cores": total_cores,
+            "used_cores": used_cores,
+            "free_cores": free_cores,
+            "utilization_pct": utilization_pct,
+            "total_gpus": total_gpus,
+            "used_gpus": used_gpus,
+        }
+
     def display(self, queue=None):
-        print("\nNode         (cpu free) load-avg free-mem      gpu Graph\n")
+        print("\nNode         (cpu free) load-avg  free-mem      gpu      Graph\n")
         output = [x.getstr(queue) for x in self.nodelist]
         for line in output:
             if print_length(line) > 0:
