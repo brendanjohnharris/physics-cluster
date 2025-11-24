@@ -14,10 +14,41 @@ import socket
 import optparse
 
 
+# Hostname detection and command wrapper
+def get_pbs_command(command):
+    """
+    Wraps PBS commands to work from any machine with SSH access to headnode.
+    If on headnode, runs command directly. Otherwise, runs via SSH.
+    Uses SSH connection multiplexing to speed up multiple calls.
+    """
+    current_host = socket.gethostname()
+
+    # Check if we're already on headnode
+    if current_host.startswith("headnode") or current_host == "headnode":
+        return command
+    else:
+        # Wrap command with SSH to headnode using connection multiplexing
+        # -q: quiet mode (suppresses warnings and diagnostic messages)
+        # -o LogLevel=ERROR: only show errors, not login banners
+        # -o ControlMaster=auto: automatically use/create master connection
+        # -o ControlPath=...: where
+        # to store the control socket
+        # -o ControlPersist=45: keep connection alive for 45s after last use
+        # Use single quotes to prevent local shell expansion
+        control_path = f"/tmp/ssh-qlload-{os.getenv('USER')}-headnode"
+        return (
+            f"ssh -q -o LogLevel=ERROR "
+            f"-o ControlMaster=auto "
+            f"-o ControlPath={control_path} "
+            f"-o ControlPersist=45 "
+            f"headnode '{command}'"
+        )
+
+
 # ANSI color codes for making output colorful
 class Colors:
     RESET = "\033[0m"
-    UNDERLINE = "\033[7m"
+    REVERSE = "\033[7m"
 
     USER_COLORS = [
         "\033[31m",  # Red
@@ -26,12 +57,12 @@ class Colors:
         "\033[34m",  # Blue
         "\033[35m",  # Magenta
         "\033[36m",  # Cyan
-        "\033[4;31m",  # Red inverted
-        "\033[4;32m",  # Green inverted
-        "\033[4;33m",  # Yellow inverted
-        "\033[4;34m",  # Blue inverted
-        "\033[4;35m",  # Magenta inverted
-        "\033[4;36m",  # Cyan inverted
+        "\033[4;31m",  # Red underline
+        "\033[4;32m",  # Green underline
+        "\033[4;33m",  # Yellow underline
+        "\033[4;34m",  # Blue underline
+        "\033[4;35m",  # Magenta underline
+        "\033[4;36m",  # Cyan underline
     ]
 
 
@@ -44,8 +75,8 @@ def get_user_color(username):
     """Generate a consistent color for each user based on order of appearance"""
     global _user_color_map, _next_color_index
 
-    if not sys.stdout.isatty():
-        return ""
+    # if not sys.stdout.isatty():
+    # return ""
 
     # If user already has a color, return it
     if username in _user_color_map:
@@ -227,7 +258,8 @@ class queue:  # Class to hold queues. Each queue contains a list of jobs that ar
         self.joblist = []
         self.hoststring = hoststring
 
-        output = os.popen("/opt/qload-monitor/bin/qstat -ft %s@headnode" % (hoststring))
+        cmd = "/opt/qload-monitor/bin/qstat -ft %s@headnode" % (hoststring)
+        output = os.popen(get_pbs_command(cmd))
         jobdata = []
         line = output.readline()
         while line:
@@ -312,7 +344,8 @@ class queue:  # Class to hold queues. Each queue contains a list of jobs that ar
             for u in items:
                 username = ""
                 timestr = self.get_user_timestrs(u[0])
-                finger = os.popen("finger %s 2> /dev/null" % (u[0]))
+                cmd = "finger %s 2> /dev/null" % (u[0])
+                finger = os.popen(get_pbs_command(cmd))
                 line = finger.readline()
                 if "Name" in line:
                     username = line.split(":")[-1].strip()
@@ -333,14 +366,14 @@ class queue:  # Class to hold queues. Each queue contains a list of jobs that ar
                 else:
                     output = output + ")"
 
-                if sys.stdout.isatty():
-                    if u[0] == this_user:
-                        output = user_color + Colors.UNDERLINE + output + Colors.RESET
-                    else:
-                        output = user_color + output + Colors.RESET
+                # if sys.stdout.isatty():
+                if u[0] == this_user:
+                    output = user_color + Colors.REVERSE + output + Colors.RESET
                 else:
-                    if u[0] == this_user:
-                        output = output.upper()
+                    output = user_color + output + Colors.RESET
+                # else:
+                #     if u[0] == this_user:
+                #         output = output.upper()
 
                 sys.stdout.write("%s %s\n" % (output, timestr.rjust(23)))
                 count += 1
@@ -419,14 +452,22 @@ class node:  # Store the information for each node
             try:
                 avail_kb = parse_mem(self.availmem)
                 used_kb = parse_mem(self.usedmem)
-                remaining_kb = avail_kb - used_kb
-                remaining_physical = remaining_kb / 1048576
-                if remaining_physical > 0:
-                    self.freemem = "%4dGB" % (remaining_physical)
+                # Convert to GB
+                avail_gb = avail_kb / 1048576
+                used_gb = used_kb / 1048576
+                free_gb = avail_gb - used_gb
+                # Calculate memory free percentage for color coding
+                self.mem_free_pct = (
+                    (free_gb * 1048576 / avail_kb * 100) if avail_kb > 0 else 0
+                )
+                # Format as free/total
+                if avail_gb > 0:
+                    self.memstr = "%3d/%3dGB" % (free_gb, avail_gb)
                 else:
-                    self.freemem = "NO MEM"
+                    self.memstr = "NO MEM"
             except:
-                self.freemem = "   Err"
+                self.memstr = "Err"
+                self.mem_free_pct = 0
 
     def get_indicator(self, queue, state):
         if queue:
@@ -443,13 +484,13 @@ class node:  # Store the information for each node
                 marker = "•"
 
                 # Color each job marker by its user
-                if j in jobdict.keys() and sys.stdout.isatty():
+                if j in jobdict.keys():  # and sys.stdout.isatty():
                     user = jobdict[j]
                     user_color = get_user_color(user)
                     # Underline if it's the current user's job
                     if user == self.this_user:
                         job_markers.append(
-                            user_color + Colors.UNDERLINE + marker + Colors.RESET
+                            user_color + Colors.REVERSE + marker + Colors.RESET
                         )
                     else:
                         job_markers.append(user_color + marker + Colors.RESET)
@@ -482,7 +523,7 @@ class node:  # Store the information for each node
                     if i * 2 < len(job_markers) and filled_in_col > 0:
                         # Extract the color codes from the job marker
                         marker = job_markers[i * 2]
-                        if sys.stdout.isatty() and marker.startswith("\033"):
+                        if marker.startswith("\033"):  # sys.stdout.isatty()
                             colored_char = marker.replace("•", char)
                             graph_chars.append(colored_char)
                         else:
@@ -501,38 +542,56 @@ class node:  # Store the information for each node
             cpu_utilization = (self.load / self.nproc * 100) if self.nproc > 0 else 0
 
             # Color code CPU based on utilization
-            cpu_text = "  (%2d/%-2d)" % (self.nproc - self.load, self.nproc)
-            if sys.stdout.isatty():
-                if cpu_utilization >= 80:
-                    cpu_text = "\033[31m" + cpu_text + "\033[0m"  # Red for high usage
-                elif cpu_utilization >= 50:
-                    cpu_text = (
-                        "\033[33m" + cpu_text + "\033[0m"
-                    )  # Yellow for medium usage
-                else:
-                    cpu_text = "\033[32m" + cpu_text + "\033[0m"  # Green for low usage
+            cpu_text = "  %2d/%-2d" % (self.nproc - self.load, self.nproc)
+            # if sys.stdout.isatty():
+            if cpu_utilization >= 80:
+                cpu_text = "\033[31m" + cpu_text + "\033[0m"  # Red for high usage
+            elif cpu_utilization >= 50:
+                cpu_text = "\033[33m" + cpu_text + "\033[0m"  # Yellow for medium usage
+            else:
+                cpu_text = "\033[32m" + cpu_text + "\033[0m"  # Green for low usage
 
             indicator = cpu_text
-            loadavg = "%4d" % (self.loadavg)
 
-            indicator += " %8.8s   %8.8s" % (loadavg, self.freemem)
+            # Format memory (free/total) first, then apply color based on free percentage
+            mem_formatted = "%-11s" % (self.memstr)
+            if self.memstr not in ["NO MEM", "Err"]:
+                if self.mem_free_pct >= 50:
+                    mem_color = "\033[32m"  # Green for plenty of free memory
+                elif self.mem_free_pct >= 20:
+                    mem_color = "\033[33m"  # Orange/Yellow for limited free memory
+                else:
+                    mem_color = "\033[31m"  # Red for low free memory
+                mem_text = mem_color + mem_formatted + "\033[0m"
+            elif self.memstr == "NO MEM":
+                mem_text = "\033[31m" + mem_formatted + "\033[0m"  # Red for no memory
+            else:
+                mem_text = mem_formatted
 
-            # Color code GPU based on availability
-            gpu_text = "%8.8s" % (self.ngpus - self.usedgpus)
-            if sys.stdout.isatty() and self.ngpus > 0:
-                gpu_free_pct = (self.ngpus - self.usedgpus) / self.ngpus * 100
+            indicator += "     " + mem_text
+
+            # Format GPU count (free/total) first, then apply color based on availability
+            gpu_free = self.ngpus - self.usedgpus
+
+            if self.ngpus > 0:
+                # Format as free/total
+                gpu_formatted = "%-6s" % ("%d/%d" % (gpu_free, self.ngpus))
+                gpu_free_pct = gpu_free / self.ngpus * 100
                 if gpu_free_pct >= 50:
                     gpu_text = (
-                        "\033[32m" + gpu_text + "\033[0m"
+                        "\033[32m" + gpu_formatted + "\033[0m"
                     )  # Green for good availability
                 elif gpu_free_pct > 0:
                     gpu_text = (
-                        "\033[33m" + gpu_text + "\033[0m"
+                        "\033[33m" + gpu_formatted + "\033[0m"
                     )  # Yellow for limited availability
                 else:
                     gpu_text = (
-                        "\033[31m" + gpu_text + "\033[0m"
-                    )  # Red for no availability
+                        "\033[31m" + gpu_formatted + "\033[0m"
+                    )  # Red for no availability (0 free)
+            else:
+                # No GPUs on this node - show nothing
+                gpu_text = "      "  # Empty space to maintain alignment
 
             indicator += " " + gpu_text
             indicator += "      " + graph
@@ -554,7 +613,8 @@ class pbsnodes:  # This class holds a list of all of the nodes
         self.hostname = hostname
         self.nodelist = []
 
-        output = os.popen("/opt/qload-monitor/bin/pbsnodes -av -s %s" % (hostname))
+        cmd = "/opt/qload-monitor/bin/pbsnodes -av -s %s" % (hostname)
+        output = os.popen(get_pbs_command(cmd))
         nodedata = []
         line = output.readline()
         while line:
@@ -607,18 +667,16 @@ class pbsnodes:  # This class holds a list of all of the nodes
         }
 
     def display(self, queue=None):
-        print("\nNode         (cpu free) load-avg  free-mem      gpu      Graph\n")
-        output = [x.getstr(queue) for x in self.nodelist]
+        print("\nnode         cpu free     mem free     gpu      graph\n")
+        # Sort nodes by number of processors (nproc), then lexicographically by hostname
+        sorted_nodes = sorted(self.nodelist, key=lambda x: (x.nproc, x.hostname))
+        output = [x.getstr(queue) for x in sorted_nodes]
         for line in output:
             if print_length(line) > 0:
                 print(line)
 
 
 # ------------------------------------------ MAIN
-
-if socket.gethostname().startswith("node"):
-    sys.stdout.write("This script cannot be run from a compute node on the cluster\n")
-    sys.exit()
 
 parser = optparse.OptionParser()
 parser.add_option(

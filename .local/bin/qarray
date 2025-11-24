@@ -19,6 +19,22 @@ while getopts "u:" opt; do
     esac
 done
 
+# Function to wrap PBS commands for remote execution
+# If on headnode, runs directly. Otherwise, wraps with SSH using connection multiplexing
+get_pbs_command() {
+    local cmd="$1"
+    local current_host=$(hostname)
+
+    # Check if we're already on headnode
+    if [[ "$current_host" == headnode* ]]; then
+        echo "$cmd"
+    else
+        # Wrap with SSH using connection multiplexing for speed
+        local control_path="/tmp/ssh-qarray-${USER}-headnode"
+        echo "ssh -q -o LogLevel=ERROR -o ControlMaster=auto -o ControlPath=${control_path} -o ControlPersist=10 headnode '$cmd'"
+    fi
+}
+
 # Function to draw a progress bar
 draw_progress_bar() {
     local completed=$1
@@ -137,7 +153,7 @@ parse_time_to_seconds() {
 # echo ""
 
 # Use qstat to get job information
-QSTAT_OUTPUT=$(qstat -u "$USER_TO_CHECK" 2>/dev/null)
+QSTAT_OUTPUT=$(eval "$(get_pbs_command "qstat -u $USER_TO_CHECK")" 2>/dev/null)
 
 if [ $? -ne 0 ]; then
     echo "Error: Unable to query jobs for user $USER_TO_CHECK"
@@ -162,7 +178,7 @@ fi
 # Process each array job
 for BASE_JOB_ID in $ARRAY_JOBS; do
     # Get detailed info for this array job
-    QSTAT_DETAIL=$(qstat -t "$BASE_JOB_ID" 2>/dev/null)
+    QSTAT_DETAIL=$(eval "$(get_pbs_command "qstat -t $BASE_JOB_ID")" 2>/dev/null)
 
     if [ -z "$QSTAT_DETAIL" ]; then
         continue
@@ -171,15 +187,40 @@ for BASE_JOB_ID in $ARRAY_JOBS; do
     # Extract base job ID without the [] suffix for pattern matching
     BASE_PATTERN=$(echo "$BASE_JOB_ID" | sed 's/\[\].*//')
 
-    # Count statuses (X = finished/completed, R = running, Q = queued, H = held, B = job array parent)
-    TOTAL=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | wc -l)
-    COMPLETED=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | grep -c " X ")
-    RUNNING=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | grep -c " R ")
-    QUEUED=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | grep -c " Q ")
-    HELD=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | grep -c " H ")
+    # Single awk pass to extract all statistics (replaces 7-8 separate grep/awk calls)
+    # This processes the qstat output once and extracts: counts, job name, and completed job times
+    read -r TOTAL COMPLETED RUNNING QUEUED HELD JOB_NAME TOTAL_TIME_SECONDS COMPLETED_COUNT < <(
+        echo "$QSTAT_DETAIL" | awk -v base="${BASE_PATTERN}" '
+        BEGIN {
+            total = 0; completed = 0; running = 0; queued = 0; held = 0
+            job_name = ""; total_time = 0; time_count = 0
+        }
+        index($1, base) == 1 && $1 ~ /\[[0-9]+\]/ {
+            total++
+            if ($5 == "X") {
+                completed++
+                # Parse time (HH:MM:SS format in column 4)
+                if ($4 != "0" && $4 != "") {
+                    split($4, t, ":")
+                    # Remove leading zeros to avoid octal interpretation
+                    h = t[1] + 0
+                    m = t[2] + 0
+                    s = t[3] + 0
+                    time_seconds = h * 3600 + m * 60 + s
+                    total_time += time_seconds
+                    time_count++
+                }
+            } else if ($5 == "R") running++
+            else if ($5 == "Q") queued++
+            else if ($5 == "H") held++
 
-    # Get job name
-    JOB_NAME=$(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | head -1 | awk '{print $2}')
+            if (job_name == "") job_name = $2
+        }
+        END {
+            print total, completed, running, queued, held, job_name, total_time, time_count
+        }
+        '
+    )
 
     # Skip if no array elements found (just the parent job)
     if [ "$TOTAL" -eq 0 ]; then
@@ -189,25 +230,10 @@ for BASE_JOB_ID in $ARRAY_JOBS; do
     # Draw progress bar with job ID on same line
     printf "%-10s " "$BASE_JOB_ID"
     draw_progress_bar "$COMPLETED" "$RUNNING" "$TOTAL"
-    # echo ""
 
     # Calculate ETA if we have completed jobs and running/queued jobs remain
     if [ "$COMPLETED" -gt 0 ] && [ "$((RUNNING + QUEUED))" -gt 0 ]; then
-        # Get total CPU time used by completed jobs from qstat output
-        TOTAL_TIME_SECONDS=0
-        COMPLETED_COUNT=0
-
-        while IFS= read -r line; do
-            # Extract time use (format: HH:MM:SS)
-            TIME_USE=$(echo "$line" | awk '{print $4}')
-            if [ -n "$TIME_USE" ] && [ "$TIME_USE" != "0" ]; then
-                TIME_SECS=$(parse_time_to_seconds "$TIME_USE")
-                TOTAL_TIME_SECONDS=$((TOTAL_TIME_SECONDS + TIME_SECS))
-                COMPLETED_COUNT=$((COMPLETED_COUNT + 1))
-            fi
-        done < <(echo "$QSTAT_DETAIL" | grep -E "^${BASE_PATTERN}\[[0-9]+\]" | grep " X ")
-
-        if [ "$COMPLETED_COUNT" -gt 0 ] && [ "$TOTAL_TIME_SECONDS" -gt 0 ]; then
+        if [ "${COMPLETED_COUNT:-0}" -gt 0 ] && [ "${TOTAL_TIME_SECONDS:-0}" -gt 0 ]; then
             # Average time per completed job
             AVG_TIME_PER_JOB=$((TOTAL_TIME_SECONDS / COMPLETED_COUNT))
 
@@ -234,11 +260,10 @@ for BASE_JOB_ID in $ARRAY_JOBS; do
                 ESTIMATED_REMAINING=$((AVG_TIME_PER_JOB * REMAINING_JOBS))
             fi
 
-            echo " | ETA: $(format_time "$ESTIMATED_REMAINING"), Avg: $(format_time "$AVG_TIME_PER_JOB")"
+            printf " | ETA: %s, Avg: %s" "$(format_time "$ESTIMATED_REMAINING")" "$(format_time "$AVG_TIME_PER_JOB")"
         fi
     fi
-
-    # echo ""
+    echo  # Always print newline after progress bar (and optional ETA)
 done
 
 # echo "Last updated: $(date '+%Y-%m-%d %H:%M:%S')"

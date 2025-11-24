@@ -101,7 +101,7 @@ viddy_command='
         local title=$1
         local color=$2
         # Right-justify the title using printf width specifier
-        printf "\n${color}%${cols}s${C_RESET}\n" "$title "
+        printf "\n${color}%${cols}s${C_RESET}" "$title "
     }
 
 
@@ -113,10 +113,12 @@ viddy_command='
     if [ "$num_jobs" -eq 0 ]; then
         print_title "SYSTEM LOAD" "$C_BLUE"
         env COLUMNS=200 unbuffer qlload 2>/dev/null || echo "qlload not available"
-        echo "$horz"
+        # echo "$horz"
         print_title "ALL JOBS" "$C_CYAN"
         echo "No running jobs for user $username. Waiting..."
         qstat -u "$username" # Show queue status anyway
+        echo ""
+        qstat
         exit
     fi
 
@@ -175,29 +177,31 @@ viddy_command='
     # --- Display all monitoring information ---
     print_title "SYSTEM LOAD" "$C_BLUE"
     env COLUMNS=200 unbuffer qlload 2>/dev/null || echo "qlload not available"
-    echo "$horz"
+    # echo "$horz"
 
-    print_title "QUEUED & HELD JOBS" "$C_YELLOW"
+    # Check if there are running array jobs to display progress bars
+    array_jobs_exist=$(qstat -u "$username" -t | grep " R " | grep -E "\[[0-9]+\]" | wc -l)
+    if [ "$array_jobs_exist" -gt 0 ]; then
+        print_title "ARRAY JOB PROGRESS" "$C_PURPLE"
+        qarray -u "$username"
+    fi
+
     # Get non-running jobs and highlight if the selected job is in this list (unlikely but possible)
     queued_jobs=$(env COLUMNS=200 qstat -u "$username" -n1 -i)
     if [ -n "$queued_jobs" ]; then
+        print_title "QUEUED & HELD JOBS" "$C_YELLOW"
         echo "$queued_jobs" | eval $highlight_cmd
-    else
-        echo "No queued or held jobs."
     fi
 
-    print_title "RUNNING JOBS" "$C_GREEN"
     # Get running jobs and highlight the selected one
     running_jobs=$(env COLUMNS=200 qstat -u "$username" -t -n1 -r)
      if [ -n "$running_jobs" ]; then
+    print_title "RUNNING JOBS" "$C_GREEN"
         echo "$running_jobs" | eval $highlight_cmd
-    else
-        echo "No running jobs."
     fi
-    echo "$horz"
 
     # --- Display Log Tailing Information ---
-    print_title "LOG PREVIEW" "$C_PURPLE"
+    print_title "LOG PREVIEW" "$C_YELLOW"
     instruction="Monitoring Job $((current_index+1))/$num_jobs ($proc) 👀"
     echo "$instruction"
     echo "Tailing log: $filename"
