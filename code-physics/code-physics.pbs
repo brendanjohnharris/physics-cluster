@@ -1,25 +1,47 @@
 #!/bin/bash
 #PBS -j oe
-#PBS -l mem=60GB
-#PBS -l vmem=60GB
-#PBS -l ncpus=11
-#PBS -l walltime=12:00:00
+#PBS -l mem=144GB
+#PBS -l vmem=144GB
+#PBS -l ncpus=8
+#PBS -l walltime=23:00:00
 
 # * Default values
 workdir="${workdir:-"$HOME/.vscode/cli/"}"
 name="${name:-"code-physics"}"
 queue="${queue:-"physics"}"
+max_retries="${max_retries:-5}"
 
 echo "workdir=${workdir}"
 echo "name=${name}"
 echo "queue=${queue}"
+echo "max_retries=${max_retries}"
 
 CURRENT_NODE=$(echo "$HOSTNAME" | cut -d '.' -f1)
-
 echo "VSCODE_CLI_USE_FILE_KEYCHAIN=${VSCODE_CLI_USE_FILE_KEYCHAIN}" >> "$HOME/code-physics/current_node"
 echo "$CURRENT_NODE" >> "$HOME/code-physics/current_node"
 
-code tunnel --accept-server-license-terms --name "$name" --cli-data-dir "$workdir" | tee "$HOME/code-physics/$name.log" "$HOME/.jobs/${PBS_JOBID}.log"
+# Retry loop
+for ((i=1; i<=max_retries; i++)); do
+    echo "Attempt $i of $max_retries"
+    echo "Attempt $i of $max_retries" >> "$HOME/code-physics/$name.log"
 
-echo "complete" >> "$HOME/code-physics/current_node"
+    code tunnel --accept-server-license-terms --verbose --name "$name" --cli-data-dir "$workdir" | tee -a "$HOME/code-physics/$name.log" "$HOME/.jobs/${PBS_JOBID}.log"
 
+    exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        echo "Tunnel started successfully on attempt $i"
+        echo "complete" >> "$HOME/code-physics/current_node"
+        exit 0
+    else
+        echo "Attempt $i failed with exit code $exit_code"
+        if [ $i -lt $max_retries ]; then
+            echo "Retrying in 5 seconds..."
+            sleep 5
+        fi
+    fi
+done
+
+echo "Failed to start tunnel after $max_retries attempts"
+echo "FAILED after $max_retries attempts" >> "$HOME/code-physics/current_node"
+exit 1

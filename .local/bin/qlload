@@ -10,39 +10,23 @@ from signal import signal, SIGPIPE, SIG_DFL
 import math
 import os
 import re
-import socket
 import optparse
 
 
-# Hostname detection and command wrapper
-def get_pbs_command(command):
-    """
-    Wraps PBS commands to work from any machine with SSH access to headnode.
-    If on headnode, runs command directly. Otherwise, runs via SSH.
-    Uses SSH connection multiplexing to speed up multiple calls.
-    """
-    current_host = socket.gethostname()
+# If not on headnode, just SSH to headnode and run qlload there
+current_host = os.uname()[1]
+if not (current_host.startswith("headnode") or current_host == "headnode"):
+    # Re-exec this script on headnode via SSH, suppressing login messages
+    import subprocess
 
-    # Check if we're already on headnode
-    if current_host.startswith("headnode") or current_host == "headnode":
-        return command
-    else:
-        # Wrap command with SSH to headnode using connection multiplexing
-        # -q: quiet mode (suppresses warnings and diagnostic messages)
-        # -o LogLevel=ERROR: only show errors, not login banners
-        # -o ControlMaster=auto: automatically use/create master connection
-        # -o ControlPath=...: where
-        # to store the control socket
-        # -o ControlPersist=45: keep connection alive for 45s after last use
-        # Use single quotes to prevent local shell expansion
-        control_path = f"/tmp/ssh-qlload-{os.getenv('USER')}-headnode"
-        return (
-            f"ssh -q -o LogLevel=ERROR "
-            f"-o ControlMaster=auto "
-            f"-o ControlPath={control_path} "
-            f"-o ControlPersist=45 "
-            f"headnode '{command}'"
-        )
+    args = ["ssh", "-q", "-o", "LogLevel=QUIET", "headnode", "qlload"] + sys.argv[1:]
+    os.execvp("ssh", args)
+
+
+# Helper to run commands (only used when already on headnode)
+def get_pbs_command(command):
+    """Simple wrapper that just returns the command as-is since we're on headnode"""
+    return command
 
 
 # ANSI color codes for making output colorful
@@ -173,8 +157,22 @@ class Job:  # Class to store Job objects (each object corresponds to a job in qs
                 a, b = entry.split("=", 1)
                 self.store[a.strip()] = b.strip()
 
-        self.nodes = int(self.store["Resource_List.select"].split(":")[0])
-        self.cpus = int(self.store["Resource_List.ncpus"])
+        try:
+            # Try to parse select format like "1:ncpus=4:mem=16gb"
+            select_first = self.store["Resource_List.select"].split(":")[0]
+            # If first part is just a number, it's the node count
+            if select_first.isdigit():
+                self.nodes = int(select_first)
+            else:
+                # Alternative format (e.g., job arrays with "ncpus=1+ncpus=0")
+                self.nodes = 1
+        except:
+            self.nodes = 1
+
+        try:
+            self.cpus = int(self.store["Resource_List.ncpus"])
+        except:
+            self.cpus = 0
         self.user = self.store["Job_Owner"].split("@")[0]
         self.job_number = self.store["Job ID"].split(".")[0]
         self.state = self.states[self.store["job_state"]]
