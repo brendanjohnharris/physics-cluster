@@ -2,8 +2,8 @@ ENV["JULIA_CPU_TARGET"] = "generic;icelake-client,clone_all;haswell,clone_all;br
 ENV["JULIA_PKG_USE_CLI_GIT"] = true
 ENV["LD_LIBRARY_PATH"] = ""
 ENV["PATH"] = "/import/taiji1/bhar9988/.conda/envs/bhar9988/bin:$(ENV["PATH"])"
-ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
-ENV["JULIA_CONDAPKG_BACKEND"] = "MicroMamba"
+# ENV["JULIA_CONDAPKG_OFFLINE"] = "yes"
+# ENV["JULIA_CONDAPKG_BACKEND"] = "MicroMamba"
 using Pkg
 ENV["PYTHON"] = "/import/taiji1/bhar9988/.conda/envs/bhar9988/bin/python"
 # ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
@@ -82,25 +82,29 @@ end
 
 
 
-function clean_repl_history(path = get(ENV, "JULIA_HISTORY",
-                                      joinpath(homedir(), ".julia", "logs", "repl_history.jl")))
+function clean_repl_history(path=get(ENV, "JULIA_HISTORY",
+    joinpath(homedir(), ".julia", "logs", "repl_history.jl")))
     try
         isfile(path) || return
         bytes = read(path)
         bytes = filter(!=(0x00), bytes)                 # remove NULs
         lines = split(String(bytes), "\n")
         lines = filter(l -> !all(isspace, l), lines)    # remove blank/whitespace
+        lines = map(lines) do l                          # ensure code lines are tab-indented
+            (startswith(l, '\t') || startswith(l, '#')) ? l : "\t" * l
+        end
         write(path, join(lines, "\n") * "\n")
     catch err
         @warn "Failed to clean REPL history" exception = (err, catch_backtrace())
     end
 end
 
-_safe_clean_repl_history() = try
-    clean_repl_history()
-catch err
-    @warn "Failed to clean REPL history (wrapper)" exception = (err, catch_backtrace())
-end
+_safe_clean_repl_history() =
+    try
+        clean_repl_history()
+    catch err
+        @warn "Failed to clean REPL history (wrapper)" exception = (err, catch_backtrace())
+    end
 
 @async _safe_clean_repl_history()  # clean soon after startup
 atexit(_safe_clean_repl_history)   # clean again on normal exit
