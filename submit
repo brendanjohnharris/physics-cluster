@@ -1,8 +1,8 @@
 #!/bin/bash
-#PBS -l ncpus=12
-#PBS -l mem=24GB
-#PBS -l vmem=24GB
-#PBS -l walltime=32:00:00
+#PBS -l ncpus=48
+#PBS -l mem=142GB
+#PBS -l vmem=142GB
+#PBS -l walltime=48:00:00
 #PBS -o $HOME/.jobs/PBS_julia.o
 #PBS -V
 #PBS -j oe
@@ -18,7 +18,9 @@
 # file="$WORKDIR/code/DDC/Dewdrop.jl/scripts/plots/sweeps/plot_spatial_sampling.jl"
 #file="$WORKDIR/code/DDC/Dewdrop.jl/scripts/plots/sweeps/spatial_sampling.jl"
 # file="$WORKDIR/code/DDC/FNSlab.jl/scripts/bFOLE_sweep.jl"
-file="$WORKDIR/code/DDC/SpatiotemporalMotifs/scripts/calculations/cluster/madev.jl"
+# file="$WORKDIR/code/DDC/WorkingRegime.jl/WRExperiment.jl/scripts/run_calculations.jl"
+#file="$WORKDIR/code/BaselinePCALab.jl/scripts/calculations/calculate_features.jl"
+file="$WORKDIR/code/DDC/WorkingRegime.jl/WRCircuit.jl/scripts/calculations/critical_sweep.jl"
 
 chmod u+x $file
 $file 2>&1 | tee /suphys/bhar9988/.jobs/${PBS_JOBID}.log

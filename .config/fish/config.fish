@@ -3,15 +3,15 @@ starship init fish | source
 set TERM xterm-256color
 
 function fish_user_key_bindings
-    bind "[A" up-or-search
-    bind "[B" down-or-search
-    bind "[C" forward-char
-    bind "[D" backward-char
-    bind "[3~" delete-char
-    bind "[1;5C" forward-word
-    bind "[1;5D" backward-word
-    bind "[200~" __fish_start_bracketed_paste
-    bind "[201~" __fish_stop_bracketed_paste
+    bind \e\[A up-or-search
+    bind \e\[B down-or-search
+    bind \e\[C forward-char
+    bind \e\[D backward-char
+    bind \e\[3~ delete-char
+    bind \e\[1\;5C forward-word
+    bind \e\[1\;5D backward-word
+    bind \e\[200~ __fish_start_bracketed_paste
+    bind \e\[201~ __fish_stop_bracketed_paste
 end
 
 set fish_greeting ""
@@ -48,22 +48,11 @@ function config
     git --git-dir=$HOME/physics-cluster --work-tree=$HOME $argv
 end
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-if test -f /suphys/bhar9988/build/miniforge3/bin/conda
-    eval /suphys/bhar9988/build/miniforge3/bin/conda "shell.fish" "hook" $argv | source
-else
-    if test -f "/suphys/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
-        . "/suphys/bhar9988/build/miniforge3/etc/fish/conf.d/conda.fish"
-    else
-        set -x PATH "/suphys/bhar9988/build/miniforge3/bin" $PATH
-    end
-end
-# <<< conda initialize <<<
-conda activate bhar9988
-
 
 # >>> juliaup initialize >>>
 fish_add_path /suphys/bhar9988/.juliaup/bin
 fish_add_path /suphys/bhar9988/.juliaup/bin/julia
 # <<< juliaup initialize <<<
+
+# Pixi
+export PATH="/suphys/bhar9988/.pixi/bin:$PATH"

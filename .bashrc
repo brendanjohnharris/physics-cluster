@@ -18,14 +18,22 @@ export PATH="$HOME/.local/bin/:$PATH"
 export PATH="/usr/physics/pbspro/bin:$PATH"
 export PAGER="vim -R +AnsiEsc"
 
+# * Save space
+export XDG_CACHE_HOME=$WORKDIR/.cache
+export UV_CACHE_DIR=$WORKDIR/.cache/uv
+export RUSTUP_HOME=$WORKDIR/.rustup
+export PIXI_CACHE_DIR=$WORKDIR/.cache/rattler/cache
+export RATTLER_CACHE_DIR=$WORKDIR/.cache/rattler/cache
+
 # * Julia configuration
 export JULIA_CPU_TARGET="generic;icelake-client,clone_all;haswell,clone_all;broadwell,clone_all;sandybridge,clone_all;ivybridge,clone_all;znver3,clone_all;sapphirerapids,clone_all"
 export JULIA_PKG_USE_CLI_GIT=true
 export LD_LIBRARY_PATH=""
-export FREETYPE_ABSTRACTION_FONT_PATH="/suphys/bhar9988/build/miniforge3/envs/bhar9988/fonts/"
+export FREETYPE_ABSTRACTION_FONT_PATH="/suphys/bhar9988/.pixi-default/.pixi/envs/default/fonts/"
 export PATH="/suphys/bhar9988/build/miniforge3/envs/bhar9988/bin:$PATH"
+export PATH="/suphys/bhar9988/.julia/bin/:$PATH"
 export PYTHON="/suphys/bhar9988/build/miniforge3/envs/bhar9988/bin/python"
-export JULIA_DEBUG="SpatiotemporalMotifs" # loading,VSCodeServer
+# export JULIA_DEBUG="SpatiotemporalMotifs" # loading,VSCodeServer
 export JULIA_WORKER_TIMEOUT=600
 export USYDCLUSTERS_LOGDIR="/suphys/bhar9988/.jobs/"
 export DRWATSON_STOREPATCH=true
@@ -33,10 +41,18 @@ export JULIA_NUM_THREADS="auto"
 # export JULIA_CONDAPKG_OFFLINE="yes"
 export ALLEN_NEUROPIXELS_OFFLINE="true"
 export JULIA_HISTORY="$HOME/.julia/logs/repl_history.jl"
+export JULIA_COPY_STACKS=1
+export GIT_SSL_CAINFO=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+export SSL_CERT_FILE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+export CURL_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+
+
+
+
 # export PYTHONWARNINGS="ignore::ImportWarning,ignore::UserWarning,ignore::DeprecationWarning"
 # export PYTHONWARNINGS="ignore:JuliaCompatHooks.find_spec() not found:ImportWarning,ignore:pkg_resources is deprecated as an API:UserWarning"
 # export JULIA_PYTHONCALL_EXE="@PyCall"
-# export FORESIGHT_PATCHES= true
+# export FATHOM_PATCHES= true
 # export DEWDROP_BACKEND= "gpu"
 # export XLA_PYTHON_CLIENT_PREALLOCATE= false # For multiple JAX instances
 
@@ -73,22 +89,70 @@ config() {
 # module load gsl-2.7
 # module load hdf/5/1.14.1-2_intel2021
 
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('$HOME/build/miniforge3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$HOME/build/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "$HOME/build/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="$HOME/build/miniforge3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
 
-conda activate bhar9988
+
+
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+. "$HOME/.cargo/env"
+
+export PATH="/suphys/bhar9988/.pixi/bin:$PATH"
+
+# * Kaimon --- one hub (headless MCP server) per user, federated over SSH
+# Nodes share this NFS $HOME, so a single hub on one node serves REPLs on every
+# node. The FIRST interactive login claims the hub: it starts the :2828 headless
+# server and records its location + auth token in ~/.cache/kaimon/hub.json (a
+# metadata signpost --- never a socket; live sockets on shared $HOME cross-wire
+# between hosts). Later logins on other nodes see a live hub and do nothing here;
+# their Julia REPL (startup.jl) starts a :tcp gate, tunnels it to the hub over
+# SSH, and registers in ~/.config/kaimon/tcp_gates.json, which the hub auto-polls.
+#
+# Liveness is a TCP probe of the advertised host:port --- valid across nodes,
+# unlike a PID check. headnode is excluded entirely (guard below); startup.jl
+# additionally refuses to register against a hub whose host is headnode.
+if [[ $- == *i* && "$(hostname)" != *headnode* ]]; then
+    # Kaimon derives its cache (sockets, state) from XDG_CACHE_HOME; this .bashrc
+    # redirects XDG_CACHE_HOME (see above), so honor it here too or hub.json and
+    # Kaimon's runtime state would land in different directories.
+    _kcache="${XDG_CACHE_HOME:-$HOME/.cache}/kaimon"
+    mkdir -p "$_kcache"
+    _khub="$_kcache/hub.json"
+    # Probe the advertised hub (host:port from hub.json) for liveness.
+    _khub_live() {
+        [ -f "$_khub" ] || return 1
+        local h p
+        h=$(sed -n 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_khub" | head -1)
+        p=$(sed -n 's/.*"mcp_port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$_khub" | head -1)
+        [ -n "$h" ] && [ -n "$p" ] || return 1
+        (exec 3<>"/dev/tcp/$h/$p") 2>/dev/null || return 1
+        exec 3<&-; return 0
+    }
+    (
+        flock -n 9 || exit 0
+        if ! _khub_live; then
+            # No live hub --- claim it on this node.
+            nohup "$HOME/.julia/bin/kaimon" --headless \
+                >"$_kcache/headless.log" 2>&1 &
+            # Wait for :2828 to bind (cold start loads packages, ~15-20s).
+            for _ in $(seq 1 45); do
+                (exec 3<>/dev/tcp/127.0.0.1/2828) 2>/dev/null && { exec 3<&-; break; }
+                sleep 1
+            done
+            # Reuse the existing token if present, else mint one.
+            _ktok=$(sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_khub" 2>/dev/null | head -1)
+            [ -n "$_ktok" ] || _ktok=$( (command -v uuidgen >/dev/null && uuidgen) || cat /proc/sys/kernel/random/uuid)
+            printf '{\n  "host": "%s",\n  "mcp_port": 2828,\n  "token": "%s",\n  "pid": %s,\n  "started_at": "%s"\n}\n' \
+                "$(hostname -f)" "$_ktok" "$$" "$(date -Is)" > "$_khub"
+            echo -e "\e[34mKaimon: claimed hub on $(hostname -f) (:2828)\e[0m"
+        else
+            _khh=$(sed -n 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_khub" | head -1)
+            echo -e "\e[34mKaimon: hub already live on ${_khh}; this REPL will register as a gate\e[0m"
+        fi
+    ) 9>"$_kcache/.headless.flock"
+    unset -f _khub_live 2>/dev/null; unset _khub _kcache
+fi
 
 # >>> juliaup initialize >>>
 
@@ -102,10 +166,7 @@ case ":$PATH:" in
         export PATH=/suphys/bhar9988/.juliaup/bin${PATH:+:${PATH}}
         ;;
 esac
+# Tab completion for juliaup and julia channel selection
+[ -f "/suphys/bhar9988/.julia/juliaup/completions/bash.sh" ] && source "/suphys/bhar9988/.julia/juliaup/completions/bash.sh"
 
 # <<< juliaup initialize <<<
-
-
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-# [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

@@ -56,3 +56,12 @@ endif
 source $HOME/build/miniforge3/etc/profile.d/conda.csh > /dev/null
 conda activate bhar9988
 
+source "$HOME/.cargo/env.tcsh"
+
+# >>> juliaup initialize >>>
+
+# !! Contents within this block are managed by juliaup !!
+
+set path = (/suphys/bhar9988/.juliaup/bin $path)
+
+# <<< juliaup initialize <<<
