@@ -1,10 +1,5 @@
 version = 1
 
-[envs.bpytop]
-channels = ["conda-forge"]
-dependencies = { bpytop = "*" }
-exposed = { bpytop = "bpytop" }
-
 [envs.expect]
 channels = ["conda-forge"]
 dependencies = { expect = "*" }
@@ -34,3 +29,13 @@ exposed = { gh = "gh" }
 channels = ["conda-forge"]
 dependencies = { postgresql = "*" }
 exposed = { clusterdb = "clusterdb", createdb = "createdb", createuser = "createuser", dropdb = "dropdb", dropuser = "dropuser", ecpg = "ecpg", initdb = "initdb", oid2name = "oid2name", pg_amcheck = "pg_amcheck", pg_archivecleanup = "pg_archivecleanup", pg_basebackup = "pg_basebackup", pg_checksums = "pg_checksums", pg_combinebackup = "pg_combinebackup", pg_controldata = "pg_controldata", pg_createsubscriber = "pg_createsubscriber", pg_ctl = "pg_ctl", pg_dump = "pg_dump", pg_dumpall = "pg_dumpall", pg_isready = "pg_isready", pg_receivewal = "pg_receivewal", pg_recvlogical = "pg_recvlogical", pg_resetwal = "pg_resetwal", pg_restore = "pg_restore", pg_rewind = "pg_rewind", pg_test_fsync = "pg_test_fsync", pg_test_timing = "pg_test_timing", pg_upgrade = "pg_upgrade", pg_verifybackup = "pg_verifybackup", pg_waldump = "pg_waldump", pg_walsummary = "pg_walsummary", pgbench = "pgbench", postgres = "postgres", psql = "psql", reindexdb = "reindexdb", vacuumdb = "vacuumdb", vacuumlo = "vacuumlo" }
+
+[envs.btop]
+channels = ["conda-forge"]
+dependencies = { btop = "*" }
+exposed = { btop = "btop" }
+
+[envs.zellij]
+channels = ["conda-forge"]
+dependencies = { zellij = "*" }
+exposed = { zellij = "zellij" }

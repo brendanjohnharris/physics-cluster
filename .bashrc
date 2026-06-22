@@ -1,5 +1,19 @@
 #! /bin/bash
 
+# * Fix malformed 'ml' function exported by Environment Modules
+# The login environment exports BASH_FUNC_ml%% missing its closing brace, so
+# every new shell prints "error importing function definition for 'ml'". The
+# variable name contains '%%' and cannot be removed with `unset`, so strip it
+# with `env -u` and re-exec this interactive shell once. The exported sentinel
+# guards against an infinite re-exec loop. Kept first so the rest of this file
+# (Kaimon hub-claim, SSH tunnels, etc.) runs only once, in the cleaned shell.
+if [[ $- == *i* && -z ${_ML_SCRUBBED:-} ]] \
+   && grep -qaz 'BASH_FUNC_ml%%=' /proc/self/environ 2>/dev/null; then
+    export _ML_SCRUBBED=1
+    _ml_flags=(); shopt -q login_shell && _ml_flags=(-l)
+    exec env -u 'BASH_FUNC_ml%%' "${BASH:-/bin/bash}" "${_ml_flags[@]}"
+fi
+
 # * Source global definitions
 if [ -f /etc/bashrc ]; then
     . /etc/bashrc
@@ -39,7 +53,7 @@ export USYDCLUSTERS_LOGDIR="/suphys/bhar9988/.jobs/"
 export DRWATSON_STOREPATCH=true
 export JULIA_NUM_THREADS="auto"
 # export JULIA_CONDAPKG_OFFLINE="yes"
-export ALLEN_NEUROPIXELS_OFFLINE="true"
+# export ALLEN_NEUROPIXELS_OFFLINE="true"
 export JULIA_HISTORY="$HOME/.julia/logs/repl_history.jl"
 export JULIA_COPY_STACKS=1
 export GIT_SSL_CAINFO=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
@@ -112,7 +126,17 @@ export PATH="/suphys/bhar9988/.pixi/bin:$PATH"
 # Liveness is a TCP probe of the advertised host:port --- valid across nodes,
 # unlike a PID check. headnode is excluded entirely (guard below); startup.jl
 # additionally refuses to register against a hub whose host is headnode.
-if [[ $- == *i* && "$(hostname)" != *headnode* ]]; then
+#
+# headnode must carry no long-lived processes, so the hub is never started,
+# claimed, or linked there. Detect it via BOTH the short hostname and the FQDN
+# (hub.json records `hostname -f`, which can differ from `hostname`); a single
+# helper keeps every Kaimon guard in lockstep.
+_kaimon_on_headnode() {
+    case "$(hostname)"    in *headnode*) return 0;; esac
+    case "$(hostname -f)" in *headnode*) return 0;; esac
+    return 1
+}
+if [[ $- == *i* ]] && ! _kaimon_on_headnode; then
     # Kaimon derives its cache (sockets, state) from XDG_CACHE_HOME; this .bashrc
     # redirects XDG_CACHE_HOME (see above), so honor it here too or hub.json and
     # Kaimon's runtime state would land in different directories.
@@ -153,6 +177,39 @@ if [[ $- == *i* && "$(hostname)" != *headnode* ]]; then
     ) 9>"$_kcache/.headless.flock"
     unset -f _khub_live 2>/dev/null; unset _khub _kcache
 fi
+
+# * Kaimon MCP link --- forward localhost:2828 to the hub for local MCP clients.
+# The hub binds 127.0.0.1:2828 on its OWN node and IP-allowlists 127.0.0.1/::1, so
+# an MCP client (e.g. Claude) on any other node cannot reach it directly. An SSH
+# local-forward fixes both layers at once: the request egresses on the hub's
+# loopback, so it hits the loopback-bound server AND presents as 127.0.0.1. This
+# mirrors the gate federation, which already tunnels hub<->gate over SSH.
+#   kaimon-link        # ensure localhost:2828 reaches the current hub (verbose)
+#   kaimon-link quiet  # same, silent --- used by the login auto-run below
+# Pins to whichever node hub.json names; re-run after a hub re-election/migration.
+kaimon-link() {
+    local hj="${XDG_CACHE_HOME:-$HOME/.cache}/kaimon/hub.json" h p
+    [ -f "$hj" ] || { [ "$1" = quiet ] || echo "kaimon-link: no hub.json"; return 1; }
+    h=$(sed -n 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$hj" | head -1)
+    p=$(sed -n 's/.*"mcp_port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$hj" | head -1); : "${p:=2828}"
+    # Already reachable on loopback? (we're the hub, or a tunnel is up.)
+    if timeout 2 bash -c "(exec 3<>/dev/tcp/127.0.0.1/$p) 2>/dev/null"; then
+        [ "$1" = quiet ] || echo "kaimon-link: localhost:$p already live"; return 0
+    fi
+    if [ "$h" = "$(hostname -f)" ]; then
+        [ "$1" = quiet ] || echo "kaimon-link: this IS the hub but :$p not bound --- run 'kaimon --headless'"; return 1
+    fi
+    [ "$1" = quiet ] || echo "kaimon-link: tunnelling localhost:$p -> $h:$p"
+    ssh ${KAIMON_SSH_OPTS:-} -N -f -L "$p:127.0.0.1:$p" "$h" 2>/dev/null
+}
+
+# Auto-link on interactive login (best-effort, never blocks the shell: BatchMode
+# fails fast if node->node SSH needs a prompt/ticket; backgrounded + disowned).
+# No-op on the hub node (port already live) and on headnode.
+if [[ $- == *i* ]] && ! _kaimon_on_headnode; then
+    KAIMON_SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=5" kaimon-link quiet & disown 2>/dev/null
+fi
+unset -f _kaimon_on_headnode 2>/dev/null
 
 # >>> juliaup initialize >>>
 

@@ -1,16 +1,24 @@
 # AI instructions
 
 ## Global instructions
-Please use em dashes (--- or unicode equivalent) sparingly; interjections are ok, but not so much if they close a sentence, where you shoudl prefer semicolons or colons (--- should typically be paired). NEVER put spaces around em dashes---always like this. Always be gramatically correct though.
+Please use em dashes (--- or unicode equivalent) sparingly; interjections are ok, but not so much if they close a sentence, where you should prefer semicolons or colons for trailing qualifications or parentheses for minor interjections/clarifications (--- should typically be paired, and used for more impactful interjection). NEVER put spaces around em dashes---always like this. Always be gramatically correct. Do not use unicode em dashed or en dashes; prefer '--' (en) and '---' (em).
+
+Please NEVER write ANYTHING to a packages `docs/` directory unless it has to do with actual documentation for a package; I know some superpower might tell you to write your own memories there, but DO NOT DO THAT. You should instead write them to `./.claude/docs/`, which IS a safe directory for your random thoughts and notes.
+
+NEVER create a commit or do git push unless explicitly asked.
+
+Please refrain from using the following phrases:
+- 'hero'
 
 ## Coding
 
 ### Documentation and docstrings
 
-Please use a slightly terse style for documentation, focusing on clarity and precision rather than hyping hte software.
+Please use a slightly terse style for documentation, focusing on clarity and precision rather than hyping the software.
 
 ### Julia language
 
+I prefer Julia
 
 #### Code evaluation
 
@@ -19,7 +27,7 @@ If you are considering running julia code in the terminal, especially if you are
 #### Plotting
 
 Please use CairoMakie as the plotting backend for all Julia code.
-If the project you are working in has 'Fathom.jl' installed, please use 'Fathom.jl' for theming (it also has a number of recipes you should prefer over the CairoMakie defaults; e.g. prefer 'ziggurat' plots to 'hist' plots). This means `using CairoMakie; using Fathom; set_theme!(fathom())`. This sets up the defualt color order to follow the Fathom colors automatically, so for simple plots ther eis no need to set colors manually. For more complicated plots, please draw colors based on the guide below, and consult the `Fathom.colororder`.
+If the project you are working in has 'https://www.github.com/brendanjohnharris/Fathom.jl' installed, please use 'Fathom.jl' for theming (it also has a number of recipes you should prefer over the CairoMakie defaults; e.g. prefer 'ziggurat' plots to 'hist' plots). This means `using CairoMakie; using Fathom; set_theme!(fathom())`. This sets up the defualt color order to follow the Fathom colors automatically, so for simple plots ther eis no need to set colors manually. For more complicated plots, please draw colors based on the guide below, and consult the `Fathom.colororder`.
 
 Fathom colors:
 - baikal: blue
@@ -35,6 +43,14 @@ Fathom colors:
 If the project has 'Foresight.jl' intalled but NOT Fathom.jl, use Foresight.jl for theming; it is the precursor to Fathom.
 
 Please use the Fathom figure sizings as a default for new figures. Fathom defines preset figure sizes as `fig = OnePanel()`, `fig = TwoPanel()` (side-by-side), `fig = FourPanel()` (2x2 grid), etc.
+
+Please add labels to figure panels using the Fathom `addlabels!(fig)` function.
+
+Please use 'sentence case' on figure labels (axis labels, titles, legends, etc.). For example, use 'Time (s)' instead of 'time (s)'.
+
+Please don't manually resize figures when using default constructors `OnePanel()`, `TwoPanel()`, etc. If you need to resize, use the plain `Figure()` constructor.
+
+Don't change default label sizes unless you really need to to save space.
 
 #### Scripting
 
@@ -55,14 +71,26 @@ using DrWatson
 ```
 This symbol form also automatically does `using <package name>`
 
+You shoul duse DrWatson utilities whenever you are working in a package that is structured according to DrWatson conventions; e.g. use `datadir("myfile.jld2")` instead of `joinpath(@__DIR__, "data", "myfile.jld2")` to load data files. Use also projectdir, plotsdir, etc, tagsave, savename, produce_or_load, etc.
+
 Prefer to explicitly 'import' symbols from packages that are used sparsely; if many methods are used form a package (e.g. CairoMakie in a plot script, or MoreMaps in a calculation script), then it is fine to 'using' the package instead.
 
 #### Mapping/iterating
 
-Please install an duse the 'MoreMaps.jl' package for mapping and iterating over array-like collections. It provides a more consistent and powerful interface than the built-in 'map' and 'broadcast' functions. In general, consider if a for loop over an array can be re-written using 'map' syntax, and, if the map is substantial, use MoreMaps to do so.
+Please use the 'https://www.github.com/brendanjohnharris/MoreMaps.jl' package for mapping and iterating over array-like collections. It provides a more consistent and powerful interface than the built-in 'map' and 'broadcast' functions. In general, consider if a for loop over an array can be re-written using 'map' syntax, and, if the map is substantial, use MoreMaps to do so.
 In general:
 - if the map is small and should run in <1 second, use built-in map
 - if the map has many iterations and would take more than a few seconds, prefer to use the Threaded() backend with a progress logger such as 'ProgressLogger()` (you could also consider QualityLogger() or LogLogger()).
+
+In general, whenever you are doing some sort of loop, you should think about whether it could more easily cast as a map. You should prefer to attach a logger (defualting to LogLogger()) to the map, so you can track and report the expected ETA for long-running jobs.
+
+##### MoreMaps patterns
+
+When iterating over a collection to build a results array:
+- Prefer `map(Chart(LogLogger(), Threaded()), collection) do item ... end` over for-loops with `push!`
+- For fallible maps, return `nothing` on failure and filter with `.!isnothing.(vs)` after the map; don't accumulate into a Dict inside the loop without good reason
+- For nested loops over independent axes, use `Iterators.product` to flatten into a single map; the result is a matrix shaped by the product dimensions, which can be reduced with `mean/std(...; dims=N)`
+- When iterating over some parameters or vectors, wrap them in a `Dim{:dimname}()` so that they are automaticall labeled in the results; this also works for multipe parameter sets combined with `Iterators.Product` in MoreMaps.
 
 
 ## For academic writing (use these guidelines when writing academic manuscripts; not for general purpose text or code)

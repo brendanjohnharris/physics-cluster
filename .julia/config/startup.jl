@@ -167,12 +167,16 @@ module _KaimonFed
         return (base, base + 1)
     end
 
-    # Build a tcp_gates.json line for one entry.
-    _gate_json(; host, port, stream_port, token, name) = string(
+    # Build a tcp_gates.json line for one entry. `node`/`pid` identify the
+    # registering REPL so this node can later prune its own dead entries (see
+    # upsert_gate!); the hub ignores these extra fields when parsing.
+    _gate_json(; host, port, stream_port, token, name, node, pid) = string(
         "    {\n",
         "      \"host\": \"", host, "\",\n",
         "      \"port\": ", port, ",\n",
         "      \"name\": \"", name, "\",\n",
+        "      \"node\": \"", node, "\",\n",
+        "      \"pid\": ", pid, ",\n",
         "      \"enabled\": true,\n",
         "      \"token\": \"", token, "\",\n",
         "      \"stream_port\": ", stream_port, "\n",
@@ -183,7 +187,7 @@ module _KaimonFed
     # we preserve any *other* nodes' entries by keeping every existing object block
     # whose host:port differs from ours, then re-emit the file. Each entry is a
     # brace-delimited block inside "tcp_gates": [ ... ].
-    function upsert_gate!(; host, port, stream_port, token, name)
+    function upsert_gate!(; host, port, stream_port, token, name, node, pid)
         mkpath(dirname(GATES_JSON))
         existing = String[]
         if isfile(GATES_JSON)
@@ -195,10 +199,18 @@ module _KaimonFed
                 h = hub_field(blk, "host")
                 p = (mm = match(r"\"port\"\s*:\s*(\d+)", blk); mm === nothing ? -1 : parse(Int, mm.captures[1]))
                 (h == host && p == port) && continue       # drop our own prior entry
+                # Prune *this node's* dead entries: same node, but the REPL that
+                # registered them has exited (no /proc/<pid>). This keeps the file
+                # bounded without touching live sibling REPLs on this node (their
+                # pid is still alive) or other nodes' entries (we can't PID-check a
+                # remote process — the hub prunes those after backoff).
+                bn = hub_field(blk, "node")
+                bpid = (pm = match(r"\"pid\"\s*:\s*(\d+)", blk); pm === nothing ? -1 : parse(Int, pm.captures[1]))
+                (bn == node && bpid > 0 && !ispath("/proc/$bpid")) && continue
                 push!(existing, "    " * strip(blk))
             end
         end
-        push!(existing, _gate_json(; host, port, stream_port, token, name))
+        push!(existing, _gate_json(; host, port, stream_port, token, name, node, pid))
         return open(GATES_JSON, "w") do io
             println(io, "{")
             println(io, "  \"tcp_gates\": [")
@@ -261,7 +273,7 @@ module _KaimonFed
             # Hub node: the hub dials our loopback directly — register the ports as-is.
             upsert_gate!(
                 host = "127.0.0.1", port = local_rep, stream_port = local_pub,
-                token = role.token, name = role.name
+                token = role.token, name = role.name, node = role.me, pid = getpid()
             )
             return "hub-local gate on 127.0.0.1:$(local_rep)"
         else
@@ -269,14 +281,24 @@ module _KaimonFed
             # loopback. Key the pair on host+local_rep (not host alone) so two REPLs on
             # the same node get distinct hub-side ports — and distinct session ids.
             hrep, hpub = hub_port_pair(role.me * ":" * string(local_rep))
-            try
+            proc = try
                 open_reverse_tunnel(role.hub_host, hrep, hpub, local_rep, local_pub)
             catch e
                 return "tunnel to $(role.hub_host) FAILED ($e); gate up locally but unregistered"
             end
+            # Wait for SSH to authenticate and bind the reverse forwards *before*
+            # advertising the gate, so the hub's first dial succeeds rather than
+            # being refused (a refusal costs a 5s poll backoff that can blow past
+            # the REPL's connect banner). ExitOnForwardFailure=yes ⇒ ssh exits if a
+            # forward can't bind, so surviving the grace window means it's ready.
+            for _ in 1:20                       # up to ~2s
+                sleep(0.1)
+                process_running(proc) ||
+                    return "tunnel to $(role.hub_host) FAILED (forward refused); gate up locally but unregistered"
+            end
             upsert_gate!(
                 host = "127.0.0.1", port = hrep, stream_port = hpub,
-                token = role.token, name = role.name
+                token = role.token, name = role.name, node = role.me, pid = getpid()
             )
             return "remote gate → hub $(role.hub_host) (loopback $hrep/$hpub)"
         end
@@ -312,14 +334,16 @@ end
 # Kaimon connection banner (TCP mode) — confirm the hub attached to THIS REPL.
 # Gate.serve() advertises our session; the hub's poll loop dials our tunnel and
 # health-pings every ~2s. A received ping (_PING_COUNT > 0) is the real proof of
-# attachment, so we wait briefly (async) for the first one. We no longer count
-# "other REPLs" from SOCK_DIR — TCP gates leave no socket adverts there.
+# attachment, so we wait (async) for the first one and print the moment it lands —
+# reactive, not a hard cutoff — only warning if still unpinged after a generous
+# bound (cold hub start + tunnel + poll discovery can legitimately take a while).
+# We no longer count "other REPLs" from SOCK_DIR — TCP gates leave no adverts there.
 if isinteractive()
     @async try
         if @isdefined(Gate) && Gate._RUNNING[]
             sid = first(Gate._SESSION_ID[], 8)
             connected = false
-            for _ in 1:60                      # wait up to ~15s (tunnel + hub poll)
+            for _ in 1:160                     # wait up to ~40s; print as soon as pinged
                 if Gate._PING_COUNT[] > 0
                     connected = true
                     break
@@ -333,8 +357,9 @@ if isinteractive()
                 )
             else
                 printstyled(
-                    "\n⚠ Kaimon: session $sid advertised but the hub never pinged it. " *
-                        "Check the hub is up (:2828) and the SSH tunnel/registration succeeded.\n";
+                    "\n⚠ Kaimon: session $sid advertised but the hub has not pinged it yet. " *
+                        "It may still attach shortly; if not, check the hub is up (:2828) " *
+                        "and the SSH tunnel/registration succeeded.\n";
                     color = :yellow
                 )
             end

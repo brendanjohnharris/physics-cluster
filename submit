@@ -21,6 +21,7 @@
 # file="$WORKDIR/code/DDC/WorkingRegime.jl/WRExperiment.jl/scripts/run_calculations.jl"
 #file="$WORKDIR/code/BaselinePCALab.jl/scripts/calculations/calculate_features.jl"
 file="$WORKDIR/code/DDC/WorkingRegime.jl/WRCircuit.jl/scripts/calculations/critical_sweep.jl"
+# file="$WORKDIR/code/Ritvik/retrieve_data.jl"
 
 chmod u+x $file
 $file 2>&1 | tee /suphys/bhar9988/.jobs/${PBS_JOBID}.log
