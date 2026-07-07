@@ -1,20 +1,32 @@
 # AI instructions
 
 ## Global instructions
-Please use em dashes (--- or unicode equivalent) sparingly; interjections are ok, but not so much if they close a sentence, where you should prefer semicolons or colons for trailing qualifications or parentheses for minor interjections/clarifications (--- should typically be paired, and used for more impactful interjection). NEVER put spaces around em dashes---always like this. Always be gramatically correct. Do not use unicode em dashed or en dashes; prefer '--' (en) and '---' (em).
+Please use em dashes (--- or unicode equivalent) sparingly; interjections are ok, but not so much if they close a sentence, where you should prefer semicolons or colons for trailing qualifications or parentheses for minor interjections/clarifications (--- should typically be paired, and used for more impactful interjection). NEVER put spaces around em dashes---always like this. Always be gramatically correct. Do not use unicode em dashes or en dashes unless critical; prefer '--' (en) and '---' (em) in latex, and in other documents please use DIFFERENT punctuation (e.g. colon, semicolon, parentheses).
 
-Please NEVER write ANYTHING to a packages `docs/` directory unless it has to do with actual documentation for a package; I know some superpower might tell you to write your own memories there, but DO NOT DO THAT. You should instead write them to `./.claude/docs/`, which IS a safe directory for your random thoughts and notes.
+Please NEVER write ANYTHING to a package's `docs/` directory unless it has to do with actual documentation for a package; I know some superpower might tell you to write your own memories there, but DO NOT DO THAT. You should instead write them to `./.claude/docs/`, which IS a safe directory for your random thoughts and notes.
 
 NEVER create a commit or do git push unless explicitly asked.
+If i do ask you to commit or push, don't name yourself in the commit or author; just run the standard git commit command with a suitable message.
 
-Please refrain from using the following phrases:
+Please refrain from using the following jargon in a software context:
 - 'hero'
+- 'contract'
+- 'harness'
+- 'smoke'
+- 'hot path'
+- 'fluent'
+- 'shim'
+and so on.
 
 ## Coding
 
 ### Documentation and docstrings
 
 Please use a slightly terse style for documentation, focusing on clarity and precision rather than hyping the software.
+
+### Comments
+
+Be terse in comments. Don't over-explain abvious code, as you are prone to do by default. Prefer short comment flags on the same line as a piece of code, not on a new line. If a concept needs explaining in more than one line of code, prefer to put the explanation in the docstring (for a function) or at the top of the block (for a script block). Avoid long paragraphs of comments. Use comments to explain the "why" of a piece of code, not the "what" (which should be clear from the code itself, as supplemented by inline/same-line comments).
 
 ### Julia language
 

@@ -27,12 +27,17 @@ pub fn spawn_details_fetcher(updates: Sender<Update>) -> Sender<Option<String>> 
             match latest {
                 Some(jobid) => match pbs::fetch_job_detail(&jobid) {
                     Ok(text) => {
-                        let _ = updates.send(Update::Details { job: jobid, text });
+                        // Parse Output_Path here (raw text) for the log-preview fallback.
+                        let output_path = pbs::output_path(&text);
+                        let _ = updates.send(Update::Details { job: jobid, text, output_path });
                     }
                     Err(e) => {
-                        let _ = updates.send(Update::Error {
-                            source: "qstat -f".into(),
-                            message: e.to_string(),
+                        let _ = updates.send(Update::Details {
+                            job: jobid.clone(),
+                            text: format!(
+                                "Unable to fetch details for {jobid}.\n\n{e}\n\nTry pressing 'r' to refresh."
+                            ),
+                            output_path: None,
                         });
                     }
                 },
@@ -40,6 +45,7 @@ pub fn spawn_details_fetcher(updates: Sender<Update>) -> Sender<Option<String>> 
                     let _ = updates.send(Update::Details {
                         job: String::new(),
                         text: String::new(),
+                        output_path: None,
                     });
                 }
             }

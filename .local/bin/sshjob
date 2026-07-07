@@ -1,0 +1,13 @@
+#!/bin/bash
+# Open a shell on a PBS job's compute node via its reverse tunnel (see ~/.jobtunnel.sh).
+# Shell-agnostic (works from bash, fish, ...). Accepts bare (21571), full
+# (21571.headnode) or array (quote it: '21571[3]') job ids. Extra args run as a
+# remote command instead of an interactive shell, e.g. `sshjob 21571 htop`.
+jid="${1:?usage: sshjob <PBS_JOBID> [command...]}"; shift
+f=""
+for c in ~/.jobs/"$jid".port ~/.jobs/"$jid".*.port; do
+    [ -f "$c" ] && { f="$c"; break; }
+done
+[ -n "$f" ] || { echo "sshjob: no tunnel for $jid (job running with a tunnel?)" >&2; exit 1; }
+read -r port _ < "$f"
+exec ssh -J headnode -o StrictHostKeyChecking=accept-new -p "$port" localhost "$@"

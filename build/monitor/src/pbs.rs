@@ -144,22 +144,83 @@ fn run_pbs(cmd: &str, args: &[&str]) -> Result<String> {
 }
 
 pub fn fetch_job_detail(jobid: &str) -> Result<String> {
-    run_pbs("qstat", &["-f", jobid])
+    match run_pbs("qstat", &["-f", jobid]) {
+        Ok(text) => Ok(text),
+        Err(first_err) => {
+            // Some PBS installations expose finished jobs only via -x history.
+            if let Ok(text) = run_pbs("qstat", &["-xf", jobid]) {
+                return Ok(text);
+            }
+
+            // Jobs can disappear between the jobs poll and details fetch.
+            // Treat this as informational, not a hard UI error.
+            let msg = first_err.to_string();
+            // "Unknown Job" subsumes "Unknown Job Id"; keep the lowercase variant too.
+            if msg.contains("Unknown Job") || msg.contains("unknown job id") {
+                return Ok(format!(
+                    "Job {jobid} is no longer available in the scheduler (it may have finished or been purged)."
+                ));
+            }
+
+            Err(first_err)
+        }
+    }
+}
+
+/// Local file path from a `qstat -f` record's `Output_Path` attribute
+/// (`host:/abs/path`), un-wrapping qstat's tab-continued lines and dropping the
+/// `host:` prefix. Used as a log-preview fallback. `None` if the attribute is absent.
+pub fn output_path(details: &str) -> Option<std::path::PathBuf> {
+    let mut lines = details.lines();
+    while let Some(line) = lines.next() {
+        if let Some(first) = line.trim_start().strip_prefix("Output_Path = ") {
+            let mut val = first.to_string();
+            for cont in lines.by_ref() {
+                match cont.strip_prefix('\t') {
+                    Some(rest) => val.push_str(rest), // qstat wraps long values, tab-indented
+                    None => break,
+                }
+            }
+            let path = val.split_once(':').map(|(_, p)| p).unwrap_or(&val);
+            return Some(std::path::PathBuf::from(path.trim()));
+        }
+    }
+    None
 }
 
 pub fn fetch_user_jobs(user: &str) -> Result<Vec<Job>> {
-    let raw = run_pbs("qstat", &["-u", user, "-t", "-n1"])?;
+    // Use wide mode so long job IDs are never truncated before details lookup.
+    let raw = run_pbs("qstat", &["-w", "-u", user, "-t", "-n1"])?;
     Ok(parse_qstat(&raw))
 }
 
-pub fn fetch_cluster_load() -> Result<String> {
-    // qlload always emits ANSI colour; COLUMNS is harmless. It SSHes to headnode
-    // internally; the ControlMaster config (Task 9) keeps that cheap.
-    run("qlload", &[], &[("COLUMNS", "200")])
+/// Cluster load rendered by the in-process qlload port (see `qlload.rs`),
+/// reverse-highlighting `highlight`'s load line and job markers. Fetches the two
+/// PBS inputs over the same multiplexed SSH path as every other query, instead of
+/// shelling out to the Python `qlload` (which re-SSHed to headnode per call).
+/// Also returns every user with jobs on the cluster (for the `u` fuzzy switch) and
+/// the structured per-user load (the ui draws that table so it can pack columns).
+pub fn fetch_cluster_load(
+    highlight: &str,
+) -> Result<(String, Vec<String>, Vec<crate::qlload::UserLoad>)> {
+    let jobs = run_pbs("qstat", &["-ft", "@headnode"])?;
+    let nodes = run_pbs("pbsnodes", &["-av", "-s", "headnode"])?;
+    Ok(crate::qlload::render_with_users(&jobs, &nodes, highlight))
 }
 
+/// Array-job progress, rendered by the in-process qarray port (see `qarray.rs`).
+/// Finds the user's array masters, then fetches each one's subjobs (`qstat -t`) --- the
+/// same calls the old bash `qarray` made, over the multiplexed SSH path.
 pub fn fetch_array_progress(user: &str) -> Result<String> {
-    run_pbs("qarray", &["-u", user])
+    let list = run_pbs("qstat", &["-w", "-u", user])?;
+    let mut lines = Vec::new();
+    for base in crate::qarray::array_bases(&list) {
+        let detail = run_pbs("qstat", &["-t", &base])?;
+        if let Some(line) = crate::qarray::render_array(&base, &detail) {
+            lines.push(line);
+        }
+    }
+    Ok(lines.join("\n"))
 }
 
 #[cfg(test)]
@@ -197,6 +258,17 @@ mod tests {
         assert!(has_array_jobs(&jobs));
         assert_eq!(job_number("16050[3].headnode"), "16050");
         assert_eq!(job_number("15992.headnode"), "15992");
+    }
+
+    #[test]
+    fn parses_output_path_unwrapping_continuation() {
+        // qstat -f wraps long values onto tab-indented continuation lines.
+        let d = "    Job_Name = x\n    Output_Path = head.usyd.edu.au:/head3/MD/Tasks/localh\n\tost/VASP.out\n    Priority = 0\n";
+        assert_eq!(
+            output_path(d),
+            Some(std::path::PathBuf::from("/head3/MD/Tasks/localhost/VASP.out"))
+        );
+        assert_eq!(output_path("no attribute here"), None);
     }
 
     #[test]

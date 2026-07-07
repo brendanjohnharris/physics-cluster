@@ -8,6 +8,14 @@ pub struct PollIntervals {
     pub cluster: Duration,
 }
 
+/// Commands the main thread sends the poller.
+pub enum PollCmd {
+    /// Force an immediate refresh of all PBS sources now.
+    Refresh,
+    /// Switch the monitored/highlighted user and refresh immediately.
+    SetUser(String),
+}
+
 fn poll_jobs(user: &str, updates: &Sender<Update>) {
     match pbs::fetch_user_jobs(user) {
         Ok(jobs) => {
@@ -36,10 +44,12 @@ fn poll_jobs(user: &str, updates: &Sender<Update>) {
     }
 }
 
-fn poll_cluster(updates: &Sender<Update>) {
-    match pbs::fetch_cluster_load() {
-        Ok(text) => {
+fn poll_cluster(highlight: &str, updates: &Sender<Update>) {
+    match pbs::fetch_cluster_load(highlight) {
+        Ok((text, users, userload)) => {
             updates.send(Update::Cluster(text)).ok();
+            updates.send(Update::Users(users)).ok();
+            updates.send(Update::UserLoad(userload)).ok();
         }
         Err(e) => {
             updates
@@ -53,13 +63,14 @@ pub fn spawn_poller(
     user: String,
     intervals: PollIntervals,
     updates: Sender<Update>,
-) -> Sender<()> {
-    let (force_tx, force_rx): (Sender<()>, Receiver<()>) = channel();
+) -> Sender<PollCmd> {
+    let (cmd_tx, cmd_rx): (Sender<PollCmd>, Receiver<PollCmd>) = channel();
 
     std::thread::spawn(move || {
+        let mut user = user; // mutable so `u`/-u can switch the monitored user live
         // Poll everything once at startup.
         poll_jobs(&user, &updates);
-        poll_cluster(&updates);
+        poll_cluster(&user, &updates);
         let mut next_jobs = Instant::now() + intervals.jobs;
         let mut next_cluster = Instant::now() + intervals.cluster;
 
@@ -68,11 +79,14 @@ pub fn spawn_poller(
             let soonest = next_jobs.min(next_cluster);
             let wait = soonest.saturating_duration_since(now);
 
-            match force_rx.recv_timeout(wait) {
-                Ok(()) => {
-                    // Manual refresh: poll everything now and reset both deadlines.
+            match cmd_rx.recv_timeout(wait) {
+                Ok(cmd) => {
+                    // Refresh or user-switch: poll everything now, reset both deadlines.
+                    if let PollCmd::SetUser(u) = &cmd {
+                        user = u.clone();
+                    }
                     poll_jobs(&user, &updates);
-                    poll_cluster(&updates);
+                    poll_cluster(&user, &updates);
                     next_jobs = Instant::now() + intervals.jobs;
                     next_cluster = Instant::now() + intervals.cluster;
                 }
@@ -83,7 +97,7 @@ pub fn spawn_poller(
                         next_jobs = now + intervals.jobs;
                     }
                     if now >= next_cluster {
-                        poll_cluster(&updates);
+                        poll_cluster(&user, &updates);
                         next_cluster = now + intervals.cluster;
                     }
                 }
@@ -92,5 +106,5 @@ pub fn spawn_poller(
         }
     });
 
-    force_tx
+    cmd_tx
 }

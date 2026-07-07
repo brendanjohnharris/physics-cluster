@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# kaimon-restart — kill the current per-user Kaimon hub (wherever it lives) and
+# claim a fresh one on THIS node.
+#
+# Companion to kaimon-health. Use it when the hub has hung: the :2828 endpoint
+# stops answering but the process never dies, so no new REPL/gate can claim a
+# replacement (the .bashrc claim only fires when the advertised host:port probe
+# is dead — a *hung* hub still accepts the TCP connect, so it looks "live").
+#
+# What it does, in order:
+#   1. Read ~/.cache/kaimon/hub.json for the advertised host + port.
+#   2. Kill the hub on its node:
+#        • host == this node  -> kill locally (always works)
+#        • host == other node -> ssh there and kill (needs working node->node
+#          SSH *now* — i.e. a valid Kerberos ticket / key / agent; the cluster
+#          federates over SSH, but a ticket-less shell cannot reach it).
+#      The victim is whatever LISTENS on :port on that node (ss/lsof/fuser),
+#      NOT hub.json's pid field — that field records the login shell that won
+#      the claim, not the server (see kaimon-health). A julia --headless
+#      fallback catches a server still mid-bind.
+#   3. Tear down any stale SSH local-forward holding :port on THIS node, so a
+#      fresh local hub can bind.
+#   4. Claim a new hub here: nohup `kaimon --headless`, wait for :port to bind
+#      (~15-20s cold start), rewrite hub.json (REUSING the existing federation
+#      token so registered gates keep authenticating), recording the real
+#      server pid this time.
+#
+# Caveats it cannot avoid:
+#   • Restarting the hub drops every gate/REPL tunnel federated to the old hub;
+#     those REPLs must reconnect (a fresh `julia` re-registers automatically).
+#   • Other nodes' MCP clients pinned to the old host via `kaimon-link` will
+#     have a dead localhost:2828 tunnel — re-run `kaimon-link` there.
+#   • If the old hub is on another node AND SSH there is refused, the remote
+#     process is left as a (harmless, no-longer-advertised) zombie holding that
+#     node's :port; reap it by hand next time you have a shell on that node.
+#
+# Usage: kaimon-restart [-n|--dry-run] [-y|--yes] [-b|--break-lock] [-h|--help]
+#   -b/--break-lock : if the cluster-wide claim lock is wedged (a dead/hung claim
+#                     on another node still holds the shared NFS flock, so nothing
+#                     can reclaim), rotate the stale lock file and claim anyway.
+set -uo pipefail
+
+PORT=2828
+KCACHE="${XDG_CACHE_HOME:-$HOME/.cache}/kaimon"
+HUB="$KCACHE/hub.json"
+FLOCK="$KCACHE/.headless.flock"
+KBIN="$HOME/.julia/bin/kaimon"
+SSH_OPTS_BATCH="-o BatchMode=yes -o ConnectTimeout=5"
+
+DRYRUN=0; ASSUME_YES=0; BREAK_LOCK=0; LOCK_WAIT=90
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -n|--dry-run)    DRYRUN=1 ;;
+        -y|--yes)        ASSUME_YES=1 ;;
+        -b|--break-lock) BREAK_LOCK=1 ;;
+        -h|--help)    sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) printf 'kaimon-restart: unknown arg %s (try --help)\n' "$1" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
+warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+hdr()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
+say()  { printf '  %s\n' "$*"; }
+
+sedkey() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$1" 2>/dev/null | head -1; }
+sednum() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$1" 2>/dev/null | head -1; }
+tcp_open() { (exec 3<>"/dev/tcp/$1/$2") 2>/dev/null && { exec 3<&-; return 0; } || return 1; }
+
+THISNODE=$(hostname -f 2>/dev/null || hostname)
+
+# A self-contained kill routine, shipped verbatim to the hub node (local or via
+# `ssh host bash -s`). Finds listeners on $1 by every available means, then
+# TERM -> wait -> KILL. Prints what it killed. Returns 0 if nothing was left.
+kill_port_snippet() {
+cat <<'SNIP'
+set -u
+PORT="$1"; DRY="${2:-0}"
+pids_on_port() {
+    local p="$1" out=""
+    if command -v ss >/dev/null 2>&1; then
+        out=$(ss -ltnHp "sport = :$p" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2)
+    fi
+    if [ -z "$out" ] && command -v lsof >/dev/null 2>&1; then
+        out=$(lsof -tiTCP:"$p" -sTCP:LISTEN 2>/dev/null)
+    fi
+    if [ -z "$out" ] && command -v fuser >/dev/null 2>&1; then
+        out=$(fuser "$p"/tcp 2>/dev/null | tr -s ' ' '\n')
+    fi
+    printf '%s\n' "$out" | grep -E '^[0-9]+$'
+}
+me=$(id -u)
+# Listener(s) on the port + any kaimon julia server still binding (our uid only).
+all=$( { pids_on_port "$PORT"; pgrep -u "$me" -f 'julia.*--headless' 2>/dev/null; } \
+        | grep -E '^[0-9]+$' | sort -u )
+if [ -z "$all" ]; then echo "NOTHING listening on :$PORT (already down)"; exit 0; fi
+echo "targets on :$PORT -> $(echo "$all" | tr '\n' ' ')"
+[ "$DRY" = 1 ] && { echo "(dry-run: not killing)"; exit 0; }
+for s in TERM TERM KILL; do
+    alive=""
+    for pid in $all; do kill -0 "$pid" 2>/dev/null && alive="$alive $pid"; done
+    [ -z "$alive" ] && break
+    kill "-$s" $alive 2>/dev/null
+    for _ in 1 2 3 4 5; do
+        rem=""; for pid in $alive; do kill -0 "$pid" 2>/dev/null && rem="$rem $pid"; done
+        [ -z "$rem" ] && break
+        sleep 1
+    done
+done
+left=$(pids_on_port "$PORT")
+[ -z "$left" ] && echo "killed; :$PORT now free" || echo "WARNING: still listening: $left"
+SNIP
+}
+
+run_kill_local()  { bash -s "$PORT" "$1" < <(kill_port_snippet); }
+run_kill_remote() {  # $1 host  $2 dryflag
+    # shellcheck disable=SC2086
+    ssh $SSH_OPTS_BATCH "$1" bash -s "$PORT" "$2" < <(kill_port_snippet)
+}
+
+# ---- 1. locate the hub ------------------------------------------------------
+hdr "Locate current hub"
+if [ ! -f "$HUB" ]; then
+    warn "no hub.json at $HUB — nothing to kill; will claim a fresh hub here"
+    HHOST=""; TOKEN=""
+else
+    HHOST=$(sedkey "$HUB" host); HPORT=$(sednum "$HUB" mcp_port); TOKEN=$(sedkey "$HUB" token)
+    : "${HPORT:=$PORT}"; PORT="$HPORT"
+    say "advertised : host=$HHOST port=$PORT"
+    say "this node  : $THISNODE"
+    if tcp_open "$HHOST" "$PORT"; then say "advertised endpoint currently ACCEPTS tcp (live or hung)"
+    else say "advertised endpoint does not accept tcp (already dead)"; fi
+fi
+
+# ---- confirm (disruptive: drops all federated gates) ------------------------
+if [ "$DRYRUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
+    printf '\n\033[1mRestart the hub now?\033[0m This kills %s and drops every\nfederated REPL/gate; they must reconnect. [y/N] ' "${HHOST:-the current hub}"
+    if [ -r /dev/tty ]; then read -r reply </dev/tty; else read -r reply || reply=""; fi
+    case "$reply" in y|Y|yes|YES) ;; *) echo "aborted."; exit 1 ;; esac
+fi
+
+# ---- 2. kill the hub on its node -------------------------------------------
+hdr "Kill the old hub"
+if [ -z "$HHOST" ]; then
+    ok "nothing advertised to kill"
+elif [ "$HHOST" = "$THISNODE" ] || [ "$HHOST" = "$(hostname)" ]; then
+    say "hub is on THIS node — killing locally"
+    out=$(run_kill_local "$DRYRUN"); printf '%s\n' "$out" | sed 's/^/    /'
+    printf '%s' "$out" | grep -q 'WARNING' && bad "could not fully free :$PORT" || ok "local kill done"
+else
+    say "hub is on $HHOST — reaching it over SSH (BatchMode)"
+    if out=$(run_kill_remote "$HHOST" "$DRYRUN" 2>&1); then
+        printf '%s\n' "$out" | sed 's/^/    /'
+        printf '%s' "$out" | grep -q 'WARNING' && bad "remote still listening on :$PORT" || ok "remote kill done"
+    else
+        printf '%s\n' "$out" | sed 's/^/    /'
+        bad "SSH to $HHOST failed (no ticket/key, or node down)"
+        warn "cannot reap the remote process automatically. Options:"
+        say  "  • get a Kerberos ticket / agent and re-run, OR"
+        say  "  • on $HHOST run:  ss -ltnp 'sport = :$PORT'  then kill that pid, OR"
+        say  "  • proceed anyway — a fresh hub will be claimed HERE and hub.json"
+        say  "    re-pointed; the remote process becomes an unadvertised zombie."
+        if [ "$DRYRUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
+            printf '  Proceed with a local claim anyway? [y/N] '
+            if [ -r /dev/tty ]; then read -r reply </dev/tty; else read -r reply || reply=""; fi
+            case "$reply" in y|Y|yes|YES) ;; *) echo "aborted."; exit 1 ;; esac
+        fi
+    fi
+fi
+
+# ---- 3. free :PORT on THIS node (stale kaimon-link tunnel) ------------------
+hdr "Free :$PORT locally for a fresh bind"
+if tcp_open 127.0.0.1 "$PORT"; then
+    say "something still holds localhost:$PORT here (stale tunnel?) — clearing"
+    out=$(run_kill_local "$DRYRUN"); printf '%s\n' "$out" | sed 's/^/    /'
+else
+    ok "localhost:$PORT is free"
+fi
+
+# ---- 4. claim a fresh hub on THIS node -------------------------------------
+hdr "Claim new hub on $THISNODE"
+if [ "$DRYRUN" = 1 ]; then
+    say "(dry-run) would: nohup $KBIN --headless ; wait for :$PORT ; write hub.json"
+    if [ -n "$TOKEN" ]; then say "(dry-run) token: reuse existing (…${TOKEN: -4})"; else say "(dry-run) token: mint new"; fi
+    hdr "Dry run complete"; exit 0
+fi
+[ -x "$KBIN" ] || { bad "kaimon binary not executable at $KBIN"; exit 1; }
+mkdir -p "$KCACHE"
+[ -n "$TOKEN" ] || TOKEN=$( (command -v uuidgen >/dev/null && uuidgen) || cat /proc/sys/kernel/random/uuid )
+
+# Claim under the same flock the .bashrc claim uses, so we never race a login
+# shell. The lock lives on shared NFS and serializes claims cluster-wide; a
+# login on any node may hold it for its ~15-45s cold-start wait, so we block
+# (with a ceiling) rather than abort. After acquiring we re-check liveness — the
+# claim we waited on may already have produced a usable hub. Exit codes:
+#   0 ok/adopted   3 lock wedged (timed out)   4 server failed to bind
+claim_under_lock() {  # $1 = lock file path
+    (
+        if ! flock -w "$LOCK_WAIT" 9; then exit 3; fi
+        if tcp_open 127.0.0.1 "$PORT"; then
+            ok "a hub came up on localhost:$PORT while we waited — adopting it, nothing to start"
+            exit 0
+        fi
+        _nadv=$(sedkey "$HUB" host)
+        if [ -n "$_nadv" ] && [ "$_nadv" != "$THISNODE" ] && [ "$_nadv" != "$(hostname)" ] && tcp_open "$_nadv" "$PORT"; then
+            ok "a hub came up on $_nadv:$PORT while we waited — run 'kaimon-link' here to reach it"
+            exit 0
+        fi
+        # setsid detaches the hub into its OWN session, so it survives the shell
+        # (or ephemeral context) that launched it — plain `nohup &` only blocks
+        # SIGHUP, not the process-group reap that kills a backgrounded child when
+        # its launcher exits. stdin from /dev/null so it never blocks on a tty.
+        setsid "$KBIN" --headless >"$KCACHE/headless.log" 2>&1 </dev/null &
+        launchpid=$!
+        say "launched detached kaimon --headless (new session); waiting for :$PORT to bind…"
+        bound=0
+        for i in $(seq 1 45); do
+            if tcp_open 127.0.0.1 "$PORT"; then bound=1; break; fi
+            sleep 1
+        done
+        [ "$bound" = 1 ] || { bad "timed out waiting for :$PORT (see $KCACHE/headless.log)"; exit 4; }
+        # Record the ACTUAL listener pid (setsid may fork, so $! is unreliable;
+        # the process bound to :$PORT is the server, by definition).
+        srvpid=$(ss -ltnHp "sport = :$PORT" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
+        : "${srvpid:=$launchpid}"
+        printf '{\n  "host": "%s",\n  "mcp_port": %s,\n  "token": "%s",\n  "pid": %s,\n  "started_at": "%s"\n}\n' \
+            "$THISNODE" "$PORT" "$TOKEN" "$srvpid" "$(date -Is)" > "$HUB"
+        ok "hub live on $THISNODE:$PORT (pid $srvpid); hub.json updated, token reused"
+    ) 9>"$1"
+}
+
+claim_under_lock "$FLOCK"; claim_rc=$?
+
+# A wedged lock is the user-facing form of "nothing reconnects": a claim died
+# (or hung) on some node still holding the cluster-wide NFS lock, so no node can
+# ever claim again. fuser/lsof here only see LOCAL holders, so a cross-node
+# holder is invisible. Recovery: rotate the lock file — a new inode gives a
+# fresh lock; the wedged holder keeps its now-orphaned lock on the old (renamed)
+# inode, which is harmless.
+if [ "$claim_rc" -eq 3 ]; then
+    bad "claim lock wedged: held >${LOCK_WAIT}s with no local holder (fuser $FLOCK shows none)"
+    say "→ a claim died/hung on another node still holding the shared NFS lock; this is why nothing reconnects"
+    do_break=$BREAK_LOCK
+    if [ "$do_break" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
+        printf '  Rotate the stale lock and claim anyway? [y/N] '
+        if [ -r /dev/tty ]; then read -r reply </dev/tty; else read -r reply || reply=""; fi
+        case "$reply" in y|Y|yes|YES) do_break=1 ;; esac
+    elif [ "$ASSUME_YES" = 1 ]; then
+        do_break=1
+    fi
+    if [ "$do_break" = 1 ]; then
+        stale="$FLOCK.stale.$(date +%s 2>/dev/null || echo old)"
+        if mv -f "$FLOCK" "$stale" 2>/dev/null; then ok "rotated stale lock -> $stale"
+        else rm -f "$FLOCK" && ok "removed stale lock"; fi
+        claim_under_lock "$FLOCK"; claim_rc=$?
+    else
+        say "re-run with --break-lock once you're sure no healthy claim is in flight"
+    fi
+fi
+[ "$claim_rc" -eq 0 ] || exit "$claim_rc"
+
+hdr "Done"
+say "Verify with:  kaimon-health"
+say "On OTHER nodes, refresh the local MCP tunnel with:  kaimon-link"
+exit 0

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# kaimon-health — quick health check of the per-user Kaimon MCP hub.
+#
+# Walks the same chain Claude Code uses: an HTTP MCP endpoint at
+# http://localhost:2828/mcp, backed by a single `kaimon --headless` hub that the
+# first interactive login claims on its node (federated over SSH; one hub per
+# user across the NFS-shared cluster, not one per job). Exits 0 when healthy,
+# non-zero otherwise, so it is usable in scripts / `watch`.
+set -uo pipefail
+
+PORT=2828
+KCACHE="${XDG_CACHE_HOME:-$HOME/.cache}/kaimon"
+HUB="$KCACHE/hub.json"
+CLAUDE="$HOME/.claude.json"
+GATES="${XDG_CONFIG_HOME:-$HOME/.config}/kaimon/tcp_gates.json"
+
+fails=0
+ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
+bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; fails=$((fails + 1)); }
+warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+hdr()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
+
+sedkey() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$1" 2>/dev/null | head -1; }
+sednum() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\\([0-9]*\\).*/\\1/p" "$1" 2>/dev/null | head -1; }
+tcp_open() { (exec 3<>"/dev/tcp/$1/$2") 2>/dev/null && { exec 3<&-; return 0; } || return 1; }
+
+THISNODE=$(hostname -f 2>/dev/null || hostname)
+
+hdr "Environment"
+echo "  node    : $THISNODE"
+echo "  PBS job : ${PBS_JOBID:-<none>}"
+echo "  cache   : $KCACHE"
+
+hdr "Hub signpost (hub.json)"
+if [ -f "$HUB" ]; then
+    HHOST=$(sedkey "$HUB" host); HPID=$(sednum "$HUB" pid); HSTART=$(sedkey "$HUB" started_at)
+    ok "found: host=$HHOST pid=$HPID started=$HSTART"
+    if [ "$HHOST" = "$THISNODE" ] || [ "$HHOST" = "$(hostname)" ]; then
+        # pid is informational only: the bashrc claim records the login-shell pid
+        # (or a since-closed shell), not necessarily the live server, so a dead
+        # pid here does NOT by itself mean the hub is down. The TCP + authenticated
+        # probes below are the source of truth for the verdict.
+        if [ -n "$HPID" ] && [ -d "/proc/$HPID" ]; then ok "hub signpost pid $HPID alive on this node"
+        else warn "hub signpost pid $HPID not in /proc (stale pid field; verdict relies on the probes below)"; fi
+    else
+        warn "hub advertises another node ($HHOST) — reached via SSH-forward; pid not checkable here"
+    fi
+else
+    bad "no hub.json at $HUB — no hub has ever been claimed in this cache"
+fi
+
+hdr "Local MCP endpoint (localhost:$PORT — what Claude connects to)"
+if tcp_open 127.0.0.1 "$PORT"; then
+    ok "TCP 127.0.0.1:$PORT is open"
+    if command -v curl >/dev/null 2>&1; then
+        code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 6 "http://localhost:$PORT/mcp" 2>/dev/null || echo 000)
+        [ "$code" = 000 ] && bad "port open but no HTTP response" || ok "HTTP responds (code $code)"
+    fi
+else
+    bad "TCP 127.0.0.1:$PORT REFUSED — no hub (or SSH-forward) reachable locally"
+fi
+
+hdr "Authenticated probe (Claude's token against the live hub)"
+AUTH=""
+if [ -f "$CLAUDE" ] && command -v jq >/dev/null 2>&1; then
+    AUTH=$(jq -r '.mcpServers.kaimon.headers.Authorization // empty' "$CLAUDE" 2>/dev/null)
+fi
+if [ -z "$AUTH" ]; then
+    warn "need jq + ~/.claude.json (mcpServers.kaimon.headers.Authorization) to test the token"
+elif command -v curl >/dev/null 2>&1 && tcp_open 127.0.0.1 "$PORT"; then
+    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 -X POST "http://localhost:$PORT/mcp" \
+        -H "Authorization: $AUTH" -H 'Content-Type: application/json' \
+        -H 'Accept: application/json, text/event-stream' \
+        -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"kaimon-health","version":"1"}}}' 2>/dev/null || echo 000)
+    case "$code" in
+        200)     ok "initialize accepted (HTTP 200) — token valid, hub serving" ;;
+        401|403) bad "auth REJECTED (HTTP $code) — ~/.claude.json token ≠ hub token" ;;
+        000)     bad "no response to initialize" ;;
+        *)       warn "initialize returned HTTP $code (server up; probe shape may differ)" ;;
+    esac
+else
+    warn "skipped (endpoint not reachable, or curl missing)"
+fi
+# Two SEPARATE credentials exist; do not conflate them:
+#   • MCP HTTP bearer  — Claude's ~/.claude.json Authorization must be one of the
+#       server's api_keys in ~/.config/kaimon/config.json. THIS is what gates MCP.
+#   • Gate-federation  — hub.json.token (also in tcp_gates.json) authenticates
+#       REPL/tcp gates to the hub over SSH. It is unrelated to the MCP bearer and
+#       is deliberately a different value; never copy it into ~/.claude.json.
+# So the meaningful check is bearer ∈ config.json.api_keys, NOT bearer == hub.json.
+CFG_JSON="${XDG_CONFIG_HOME:-$HOME/.config}/kaimon/config.json"
+if [ -n "$AUTH" ] && [ -f "$CFG_JSON" ] && command -v jq >/dev/null 2>&1; then
+    ctok=${AUTH#Bearer }; ctok=${ctok# }
+    if jq -e --arg t "$ctok" '(.api_keys // []) | index($t)' "$CFG_JSON" >/dev/null 2>&1; then
+        ok "claude.json bearer is an authorized api_key in config.json (…${ctok: -4})"
+    else
+        bad "claude.json bearer (…${ctok: -4}) is NOT in config.json api_keys — MCP will 401"
+    fi
+elif [ -n "$AUTH" ]; then
+    warn "cannot verify bearer against config.json (need jq + $CFG_JSON)"
+fi
+
+hdr "Gates / REPL sessions"
+if [ -f "$GATES" ] && command -v jq >/dev/null 2>&1; then
+    n=$(jq 'length' "$GATES" 2>/dev/null || echo '?')
+    ok "$n gate(s) registered in tcp_gates.json"
+else
+    warn "no tcp_gates.json (authoritative live-session count needs the MCP \`ping\` tool)"
+fi
+
+hdr "Recent headless log"
+[ -f "$KCACHE/headless.log" ] && tail -6 "$KCACHE/headless.log" | sed 's/^/    /' || warn "no headless.log"
+
+hdr "Verdict"
+if [ "$fails" -eq 0 ]; then
+    printf '  \033[1;32mHUB HEALTHY\033[0m\n'
+    exit 0
+fi
+printf '  \033[1;31m%d problem(s) — hub NOT healthy\033[0m\n' "$fails"
+cat <<'EOF'
+  Likely fixes:
+   • Start the hub on THIS node : bash -lic 'true'      (sources .bashrc; waits ~15-20s for :2828)
+   • Auth 401 / bearer rejected : set ~/.claude.json → mcpServers.kaimon.headers.Authorization
+                                  to "Bearer <one of api_keys in ~/.config/kaimon/config.json>",
+                                  then reconnect.  (NOT hub.json's token — that is the gate secret.)
+   • Tools missing in Claude    : restart Claude Code (or /mcp reconnect) once the hub is up
+EOF
+exit 1

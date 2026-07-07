@@ -15,6 +15,10 @@ ENV["DRWATSON_STOREPATCH"] = true
 # ENV["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 ENV["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 
+# NB: the global logger is deliberately left as the stdlib default. A custom TerminalLogger in the
+# global slot crashes GPU kernel compilation (GPUCompiler introspects the global logger's
+# min_enabled_level at a fixed world → "method too new"). Scripts that want a progress bar scope it
+# locally instead: `with_logger(TerminalLogger()) do ... end` (world-safe; see scripts/plots/critical_demo.jl).
 
 using Revise
 using OhMyREPL
@@ -69,14 +73,11 @@ if !contains(gethostname(), "headnode") && haskey(ENV, "MOST_RECENT_SOCKET")
     # VSCodeServer.serve(sock; is_dev="DEBUG_MODE=true" in Base.ARGS, crashreporting_pipename=raw"/tmp/vsc-jl-cr")
     # nothing # re-establishing connection with VSCode
 end
-# if contains(gethostname(), "gpu")
+# if contains(gethostname(), "gpu") || contains(gethostname(), "h100")
 #     using CUDA
-#     CUDA.set_runtime_version!(v"12.5.0")
-# end
-# if false
-# if splitpath(Base.active_project())[end-1] == "Dewdrop.jl"
-# ENV["JULIA_CONDAPKG_ENV"] = "/taiji1/bhar9988/.conda/envs/bhar9988/"
-# end
+#     if CUDA.runtime_version() != v"12.5"
+#         CUDA.set_runtime_version!(v"12.5.0")
+#     end
 # end
 
 

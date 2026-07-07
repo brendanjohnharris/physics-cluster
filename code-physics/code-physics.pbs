@@ -11,7 +11,7 @@ set -o pipefail   # so $? reflects the tunnel's exit, not tee's
 workdir="${workdir:-"$HOME/.vscode/cli/"}"
 name="${name:-"code-physics"}"
 queue="${queue:-"physics"}"
-max_retries="${max_retries:-5}"
+max_retries="${max_retries:-10}"
 
 logdir="$HOME/code-physics"
 logfile="$logdir/$name.log"
@@ -30,6 +30,11 @@ CURRENT_NODE=$(echo "$HOSTNAME" | cut -d '.' -f1)
     echo "VSCODE_CLI_USE_FILE_KEYCHAIN=${VSCODE_CLI_USE_FILE_KEYCHAIN}"
     echo "$CURRENT_NODE"
 } >> "$nodefile"
+
+# Start our own sshd + reverse tunnel so `sshjob <jobid>` reaches this node for a
+# terminal (see ~/.jobtunnel.sh). Sourced before the cleanup trap below; its
+# teardown is folded into cleanup(). No-op outside a PBS job.
+source "$HOME/.jobtunnel.sh"
 
 # ---- Helpers ---------------------------------------------------------------
 
@@ -75,6 +80,8 @@ warn_if_registered_elsewhere() {
 cleanup() {
     echo "Caught termination signal — cleaning up tunnel."
     kill_stale_tunnel
+    [ -n "${_jt_sshd:-}" ] && kill "$_jt_sshd" 2>/dev/null   # jobtunnel sshd
+    rm -f "$HOME/.jobs/${PBS_JOBID}.port"                    # jobtunnel registry
 }
 trap cleanup EXIT INT TERM
 
@@ -102,6 +109,7 @@ for ((i=1; i<=max_retries; i++)); do
         echo "Tunnel started successfully on attempt $i"
         echo "complete" >> "$nodefile"
         trap - EXIT INT TERM    # don't run cleanup on a clean exit
+        rm -f "$HOME/.jobs/${PBS_JOBID}.port"   # tidy jobtunnel registry
         exit 0
     else
         echo "Attempt $i failed with exit code $exit_code"

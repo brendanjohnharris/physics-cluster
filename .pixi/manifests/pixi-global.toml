@@ -39,3 +39,8 @@ exposed = { btop = "btop" }
 channels = ["conda-forge"]
 dependencies = { zellij = "*" }
 exposed = { zellij = "zellij" }
+
+[envs.nvitop]
+channels = ["conda-forge"]
+dependencies = { nvitop = "*" }
+exposed = { nvitop = "nvitop", nvisel = "nvisel" }

@@ -27,11 +27,16 @@ done
 
 user="$(whoami)"
 hostname="$user@headnode.physics.usyd.edu.au"
-echo "Connecting to $hostname"
 mkdir -p ~/jobs/
 rm -f ~/code-physics/$name.log
 touch ~/code-physics/$name.log
 sshcmd="/bin/bash -c \"export workdir='$workdir'; export name='$name'; qsub -o '$HOME/jobs/PBS_code-physics.o' -v workdir,name -q '$queue' ${extra_args[*]} ~/code-physics/code-physics.pbs\""
 # sshcmd="/bin/bash -c \"qsub -o '$HOME/jobs/PBS_code-physics.o' -q '$queue' ~/code-physics/code-physics.pbs\""
-ssh $hostname $sshcmd
+targethost="${hostname#*@}"
+if [[ "$(hostname -f)" == "$targethost" ]]; then
+    eval "$sshcmd"
+else
+    echo "Connecting to $hostname"
+    ssh $hostname $sshcmd
+fi
 tail -f ~/code-physics/$name.log
