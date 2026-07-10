@@ -31,9 +31,6 @@ CURRENT_NODE=$(echo "$HOSTNAME" | cut -d '.' -f1)
     echo "$CURRENT_NODE"
 } >> "$nodefile"
 
-# Start our own sshd + reverse tunnel so `sshjob <jobid>` reaches this node for a
-# terminal (see ~/.jobtunnel.sh). Sourced before the cleanup trap below; its
-# teardown is folded into cleanup(). No-op outside a PBS job.
 source "$HOME/.jobtunnel.sh"
 
 # ---- Helpers ---------------------------------------------------------------

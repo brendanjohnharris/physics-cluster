@@ -97,7 +97,7 @@ alias code-physics-2='$HOME/code-physics/start-code-physics --workdir $HOME/code
 config() {
     git --git-dir="$HOME/physics-cluster" --work-tree="$HOME" "$@"
 }
-# jobport / sshjob are now scripts in ~/.local/bin (shell-agnostic: bash + fish).
+
 
 # * Common modules
 # module load pbspro

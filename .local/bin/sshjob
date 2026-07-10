@@ -1,9 +1,24 @@
 #!/bin/bash
-# Open a shell on a PBS job's compute node via its reverse tunnel (see ~/.jobtunnel.sh).
-# Shell-agnostic (works from bash, fish, ...). Accepts bare (21571), full
-# (21571.headnode) or array (quote it: '21571[3]') job ids. Extra args run as a
+# Open a shell on a PBS job's compute node via its reverse tunnel (see ~/.jobtunnel.sh). Extra args run as a
 # remote command instead of an interactive shell, e.g. `sshjob 21571 htop`.
-jid="${1:?usage: sshjob <PBS_JOBID> [command...]}"; shift
+# No job id: pick from live tunnels (~/.jobs/*.port). One → use it; many → menu.
+if [ $# -eq 0 ]; then
+    shopt -s nullglob
+    jids=(); labels=()
+    for p in ~/.jobs/*.port; do
+        b="${p##*/}"; b="${b%.port}"; read -r _ host _ < "$p"
+        jids+=("${b%%.*}"); labels+=("${b%%.*}  ${host:-?}")
+    done
+    case ${#jids[@]} in
+        0) echo "sshjob: no live tunnels (no ~/.jobs/*.port)" >&2; exit 1;;
+        1) jid="${jids[0]}";;
+        *) echo "Select a job:" >&2
+           select l in "${labels[@]}"; do [ -n "$l" ] && { jid="${jids[$((REPLY-1))]}"; break; }; done
+           [ -n "${jid:-}" ] || exit 1;;
+    esac
+else
+    jid="$1"; shift
+fi
 f=""
 for c in ~/.jobs/"$jid".port ~/.jobs/"$jid".*.port; do
     [ -f "$c" ] && { f="$c"; break; }

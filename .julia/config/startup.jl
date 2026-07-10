@@ -15,10 +15,6 @@ ENV["DRWATSON_STOREPATCH"] = true
 # ENV["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 ENV["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 
-# NB: the global logger is deliberately left as the stdlib default. A custom TerminalLogger in the
-# global slot crashes GPU kernel compilation (GPUCompiler introspects the global logger's
-# min_enabled_level at a fixed world → "method too new"). Scripts that want a progress bar scope it
-# locally instead: `with_logger(TerminalLogger()) do ... end` (world-safe; see scripts/plots/critical_demo.jl).
 
 using Revise
 using OhMyREPL
