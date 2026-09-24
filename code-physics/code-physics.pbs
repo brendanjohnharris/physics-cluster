@@ -1,11 +1,15 @@
 #!/bin/bash
 #PBS -j oe
-#PBS -l mem=88GB
-#PBS -l vmem=88GB
+#PBS -l mem=63GB
+#PBS -l vmem=63GB
 #PBS -l ncpus=16
 #PBS -l walltime=23:00:00
 
 set -o pipefail   # so $? reflects the tunnel's exit, not tee's
+
+# VS Code's Julia processes inherit this; without it they write native-CPU package caches that
+# multi-target precompile workers reject. Taken from .bashrc so the two cannot drift.
+eval "$(grep -m1 '^export JULIA_CPU_TARGET=' "$HOME/.bashrc")"
 
 # ---- Default values --------------------------------------------------------
 workdir="${workdir:-"$HOME/.vscode/cli/"}"
